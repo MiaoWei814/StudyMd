@@ -24,7 +24,7 @@
 而我们使用的话就直接引入外部JS就行:
 
 ```javascript
-<script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script> //注意标签内部不能写内容不然就会被覆盖
+<script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script> //注意标签内部不能写内容不然就会被覆盖;
 ```
 
 之前我们获取文档对象中某个节点是用:

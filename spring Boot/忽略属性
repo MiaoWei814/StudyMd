@@ -1,0 +1,65 @@
+# 注解说明
+
+> 这是我总结的基本属性常用的。方便以后工作还是学习都能用到。
+
+## 1. Json序列化时如何忽略部分字段
+
+**业务场景：**我们通常在后端业务处理要返回给前端数据结构，而返回的JavaBean，通常都是在rap或yapi上已经定好了，但是在我们后端通常需要处理数据就要多添一个字段但是此时前端是不需要的。此时若返回给前端肯定会让别人造成混淆。
+
+1. @JsonIgnore 注解
+
+   ```java
+   @ApiModel("时间轴详情")
+   @Data
+   @Accessors(chain = true)
+   public class EventProcessDetails {
+       @ApiModelProperty("日期")
+       private String date;
+   
+       @ApiModelProperty("标题（线索和反馈时需要自己拼装）")
+       private String title;
+   
+       @ApiModelProperty("记录id")
+       private Long id;
+       
+       @JsonIgnore
+       @ApiModelProperty(value = "上报时间", hidden = true)
+       private String reportTime;
+       
+       @JsonIgnore
+       @ApiModelProperty(value = "0:预警型 1：行动型", hidden = true)
+       private String clueType;
+   }
+   ```
+
+   这样这个只有后端才知道，是不会返回给前端使用，就连postman调用都不会出现。
+
+2. @JsonIgnoreProperties() 注解
+
+   ```java
+   @ApiModel("时间轴详情")
+   @Data
+   @Accessors(chain = true)
+   @JsonIgnoreProperties({reportTime},{clueType})
+   public class EventProcessDetails {
+       @ApiModelProperty("日期")
+       private String date;
+   
+       @ApiModelProperty("标题（线索和反馈时需要自己拼装）")
+       private String title;
+   
+       @ApiModelProperty("记录id")
+       private Long id;
+       
+       @ApiModelProperty(value = "上报时间", hidden = true)
+       private String reportTime;
+       
+       @ApiModelProperty(value = "0:预警型 1：行动型", hidden = true)
+       private String clueType;
+   }
+   ```
+
+   在类上增加需要忽略属性的注解也是可以实现的。
+
+> 当然还有一种就是@JsonIgnoreProperties(ignoreUnknown = true) 不过这个还暂时不太清楚，意思是忽略不存在的字段
+

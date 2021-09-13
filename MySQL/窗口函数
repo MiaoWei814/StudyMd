@@ -1,0 +1,101 @@
+# 窗口函数
+
+> 窗口函数适用于MySQL8.0才开始支持的,也即是说MySQL8.0之前的版本是不支持的
+
+![数据分析面试必备——SQL窗口函数你会了吗？](https://gitee.com/miawei/pic-go-img/raw/master/imgs/v2-c848cf9b852a96adde6689a69c18a1b8_1440w.jpg)
+
+------
+
+我之前也是不太重视后面在工作中遇到某些业务场景,当时也难倒我了,如果不能在SQL中一下返回那么弄到Java业务处理也是有点麻烦的,所以今天就来记录下
+
+## 1.窗口排序
+
+**窗口函数中，排序函数又是最常用到的**
+
+业务场景:用于获取分组后统计某个字段最多的数据,窗口排序主要是指非全局排序，需要在某个维度下进行排序。进入这part之前，先建个临时表来帮助理解。例如说现在想看各个department内部cost最多的人，这时候不能全局order by了，以下就建立一个临时表
+
+![img](https://pic4.zhimg.com/80/v2-12b427b62f60b86ea133526e69cbf28b_720w.jpg)
+
+```sql
+select
+    *,
+    row_number() over ( partition by department order by cost desc ) as row_number_result,
+    rank() over ( partition by department order by cost desc) as rank_result,
+    dense_rank() over (partition by department order by cost desc) as dense_rank_result
+from
+    table
+```
+
+分组排序的结果:
+
+![img](https://pic4.zhimg.com/80/v2-797c8f1b2ce43b4be449351239a88217_720w.jpg)
+
+row_number() 则在排序相同时不重复，会根据顺序排序。
+
+rank()排序相同时会重复，总数不会变 ，意思是会出现1、1、3这样的排序结果；
+
+dense_rank() 排序相同时会重复，总数会减少，意思是会出现1、1、2这样的排序结果。
+
+> 这里只不过是将数据进行排序,我们在业务中经常会只要row_number_result=1,取分组后最大的那条数据
+
+## 2.分区最大/最小值
+
+first_value/last_value取的是分组内排序后，截止到当前行第一个/最后一个值
+
+这个跟上面的窗口排序是一个道理,只不过这里就不会排序标记,而是直接获取第一条或者最后一条数据
+
+```sql
+select
+    *,
+    first_value(name) over ( PARTITION BY department ORDER BY cost desc ) as max_cost_user, ## 分组取每个组的最大值对应的人
+    first_value(name) over ( PARTITION BY department ORDER BY cost ) as min_cost_user ## 分组取每个组的最大值对应的人
+from
+    table
+```
+
+最后就会得到每个组里的cost最多和最少的人：
+
+![img](https://pic1.zhimg.com/80/v2-7aac809b9d06508db6f756194fa344dc_720w.jpg)
+
+## 3.累积百分比
+
+累积百分比的应用场景也很多，比如说，想看前XX%的用户贡献了XX%的总额。
+
+这个地方需要两个函数的使用，1是XX%的用户，2是XX%的总额。
+
+```sql
+select
+    *,
+    cume_dist() OVER (PARTITION BY department ORDER BY  cost desc ) as cum_dist,
+    sum(cost) OVER ( PARTITION BY department ORDER BY cost desc )/sum(cost) OVER (PARTITION BY department) as s
+from
+    table
+where
+    department = 'A'
+```
+
+
+
+cume_dist返回的是小于等于当前值的行数/分组内总行数，但我倒序排的话，也就是大于等于了。sum()over是算的累积值的占比。但A组这种无重复值的，结果是很好理解的。最后可以得到A部门的cost由高到低排序，XX%的人累积贡献了XX%多少。
+
+![img](https://pic2.zhimg.com/80/v2-aeffadf3c9ca8a0604afe41138f15b31_720w.jpg)
+
+> 比如这里,33%所处行数为1 总函数为3 进行1/3为33%
+
+## 4.错位
+
+lead和lag函数，这两个函数一般用于计算差值，最适用的场景是计算花费时间。举个例子，有数据是每个用户浏览网页的时间记录，将记录的时间错位之后，进行两列相减就可以得到每个用户浏览每个网页实际花费的时间。
+
+lead是用于统计窗口内往下第n行值，lag是用于统计窗口内往上第n行值。
+
+虽然目前我们这个数据不是时间数据，也可以使用这个函数操作一下。例如说，现在计算按cost排序后，每个department的人他们的花费，以及和比他们花费排名更高一名的人的值，可以计算差值。
+
+```sql
+select *,
+    lead(cost) over(partition by department order by cost) next_cost
+from table
+```
+
+![img](https://pic1.zhimg.com/80/v2-7cc588ae6db288f9157771283d4fa778_720w.jpg)
+
+> 这里就是获取往下的值,比如:cost为100 往下取还是100,再往下取250,最后一个分组获取下一个就是null

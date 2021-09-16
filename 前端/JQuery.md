@@ -126,7 +126,29 @@ $("#myDiv").html("这是JQuery修改后的"); //这里是选择为ID是myDIV,所
 
 **注意**:第一种方式`$(document).ready(function(){...}`可以简写为`$(function(){...});`!
 
+### 2.2 对象互换
 
+1. 将Dom对象转换成jquery对象：**$(dom对象)**
+2. 将jquery对象转换成dom对象：通过jquery的方法**get(0)**
+
+```javascript
+<script type="text/javascript">
+  //获取原生JS的节点
+  let element = document.getElementById("myDiv");
+  //转JQuery对象
+  let $myDiv = $(element);
+  console.log($myDiv);
+
+  //JQuery对象转原生js
+  let myDivElement = $myDiv[0];
+  console.log(myDivElement);
+  //另一种方式
+  let newVar = $myDiv.get(0);
+  console.log(newVar);
+</script>
+```
+
+![image-20210914151049530](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210914151049530.png)
 
 ## 3.选择器
 
@@ -215,10 +237,50 @@ for(var i = 0 ; i < $obj.length ; i++){
 
 ```javascript
 //$obj：jquery集合对象，index遍历元素的下标（从0开始），obj表示每一个节点
-$obj.each(function(index , obj){
+$obj.each(function(index , obj){   //这里的obj是一个dom对象
 	alert($(obj).val());
 });
 ```
+
+综合案例:
+
+```javascript
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>for循环</title>
+  <script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script>
+</head>
+<body>
+  <input type="text" name="username" class="hobbits">
+  <input type="text" name="password" class="hobbits"/>
+  <input type="text" name="age" class="hobbits"/>
+</body>
+<script type="text/javascript">
+  //获取节点
+  let $input = $("input");
+  //第一种方式:遍历
+  for (let i = 0; i < $input.length; i++) {
+    console.log($input[i]);
+  }
+  console.log("---------分割线")
+  //第二种方式:each
+  $input.each(function (index, obj) {
+    console.log(index, $(obj));   //将原生的JS转为JQuery对象
+  });
+  console.log("---------分割线")
+  //第三种方式:each
+  $.each($input, function (index, obj) {  //这里获取遍历的对象是原生的JS,所以打印出的是原来的JS
+    console.log(index, obj);
+  });
+</script>
+</html>
+```
+
+结果:
+
+![image-20210914174805528](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210914174805528.png)
 
 ## 5.绑定事件
 
@@ -352,6 +414,44 @@ $(function() {
     })
 });
 ```
+
+案例:
+
+```javascript
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>事件委托</title>
+</head>
+<script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script>
+<body>
+<input type="button" value="添加按钮" onclick="add()">
+<div id="myDiv">
+  <input type="button" value="注册事件方式1" id="btn1"><br/>
+</div>
+</body>
+<script type="text/javascript">
+  //添加按钮
+  function add() {
+    $("#myDiv").append("<input type=\"button\" value=\"注册事件方式1\" id=\"btn1\"><br/>");
+  }
+
+  //对按钮触发
+  $("#myDiv").on("click", "#btn1", function () {
+    alert(this.value);
+  })
+</script>
+</html>
+```
+
+> 这里this代表当前对象,就是谁调用就是谁
+
+结果:
+
+![image-20210914180308079](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210914180308079.png)
+
+> 如何选择?一般委托方选择该节点的父标签,然后通过父标签绑定事件委托给子元素
 
 ## 6.方法
 
@@ -623,4 +723,165 @@ $.ajax({
 
    - delete 对象.属性名  或者 delete 对象["属性名"]
 
-   
+
+```javascript
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>创建对象</title>
+  <script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script>
+</head>
+<body>
+<script type="text/javascript">
+  //创建对象
+  var person={
+    "name": "张三",
+    "age": "20岁",
+    ww: 22,
+    array:[   //数组
+      {"name": "李四"},  //对象
+      {"name":"李二狗"},
+      {"gougou":12}
+    ]
+  }
+  console.log(person);
+  console.log("----------------------分割线");
+  //循环对象中的数组
+  $.each(person.array,function (index, item) {
+    console.log(index, item);
+  });
+  console.log("----------------------分割线");
+  //添加对象中的参数
+  person.newObj = "我是新来的!";  //添加属性直接通过对象.的方式就能直接添加
+  console.log(person);
+  console.log("----------------------分割线");
+  //修改对象的属性
+  person.newObj = "我是被修改的!";  //如果有属性的话那么此时就会是修改对应属性的值
+  console.log(person);
+  console.log("----------------------分割线");
+  //添加对象中属性为对象和数组
+  person.addObj={  //对象.属性创建,通过{}表示创建为对象,然后在对象中的属性值为[]表示为数组类型
+    aaa: "很哇塞!",
+    newArray:[ //数组
+      {fuck: "我很生气!"}
+    ]
+  }
+  console.log(person)
+  console.log("----------------------分割线");
+  //删除属性
+  delete person.name;
+  console.log(person);
+</script>
+</body>
+</html>
+```
+
+console:
+
+![image-20210914184932419](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210914184932419.png)
+
+### 8.1 JSON格式字符串转JSON对象
+
+```javascript
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>JSON格式</title>
+</head>
+<script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script>
+<body>
+<script type="text/javascript">
+  var jsonObj = '{name:"张三",age:12}';
+  console.log(jsonObj);
+  //将字符串转为对象,会自动将字段名加上双引号,也就是说不规范的json也能转
+  var jsonObj1 = eval("(" + jsonObj + ")");
+  console.log(jsonObj1);
+
+  // JSON.parse() 只能转标准的
+  var jsonObja = '{"name":"张三","age":12}';
+  let parse = JSON.parse(jsonObja);
+  console.log(parse);
+
+  //$.parseJSON()  只能转标准的
+  let parseJSON = $.parseJSON(jsonObja);
+  console.log(parseJSON);
+</script>
+</body>
+</html>
+```
+
+结果:
+
+![image-20210914182123735](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210914182123735.png)
+
+> 也就是说我们使用字符串格式的JSON的时候,如果格式中的字段没加双引号那么就认定是不规范的JSON,那么使用JSON.parse或者JQuery.parseJSON都会转失败,因为格式标准不一样,而如果使用 eval("(" + jsonObj + ")"); 就会转为JSON对象,无论是规范还是不规范的都可以!
+
+
+
+## 9.省市二联动案例
+
+这里把练习ajax与HTML联动练习做个笔记:
+
+```javascript
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>省市二联动</title>
+  <script type="text/javascript" src="jQueryLibrary/jquery-2.1.3.js"></script>
+</head>
+<body>
+省份:<select id="province">
+  <option value="-1">未选择--</option>
+</select>
+城市:<select id="city">
+  <option value="-1">未选择--</option>
+</select>
+</body>
+<script type="text/javascript">
+  //在页面加载的时候加载省份
+  $(function () {
+    //ajax发送请求
+    $.ajax({
+      type: "GET",
+      data: "",
+      url: "http://localhost:8080/demo/province",
+      success: function (data) {  //这里返回的就是一个JSON数据
+        //循环遍历
+        $.each(data, function (index, value) {
+          $("#province").append('<option value="' + value.id + '">' + value.name + '</option>');
+        });
+      },
+      dataType: "JSON"
+    })
+    //进行绑定事件进行监听
+    $("#province").on("change", function () {
+      let provinceVal = $("#province").val();
+      $.ajax({
+        type: "GET",
+        data: {pid: provinceVal},
+        url: "http://localhost:8080/demo/city",
+        success: function (data) {
+          //每次获取城市的时候由于采用的直接append添加的方式,所以这里需要清空之前的
+          $("#city").empty();
+          $("#city").append('<option value="-1">--请选择--</option>');//每次获得市级城市之前：初始化市级城市
+          //循环遍历添加
+          $.each(data, function (index, value) {
+            $("#city").append('<option value="' + value.id + '">' + value.name + '</option>');
+          });
+        }
+      })
+    });
+
+  })
+</script>
+</html>
+```
+
+页面:
+
+![image-20210915184145756](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210915184145756.png)
+
+> 使用这个案例就是一个发送请求然后添加到指定HTML结构而已

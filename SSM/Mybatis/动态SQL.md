@@ -64,6 +64,27 @@ demo:
 </insert>
 ```
 
+如果有多个list那如何指定呢?
+
+```mysql
+void tenantAddApp(@Param("tenantId") String tenantId, @Param("mapList")List<Map> mapList);
+
+    <insert id="tenantAddApp">
+        insert into oauth_tenant_applicaion values
+        <foreach collection="mapList" item="map" index="index"  separator="," close=";">
+            (#{tenantId}, #{map.appId},#{map.wxAppId})
+        </foreach>
+    </insert>
+为什么要这样写吗?
+	我们在传入一个List或者数组的时候传进去,mybatis会将其List或者数组放在map中!
+                1.传List,那么就是key为list,value为内容,如传的是List<Person>,那么mybatis解析为<list,Person>,这种!
+                2.传数组,就是array,mybatis解析为<array,内容>
+	而我们传入的是一个固定参数名为mapList,那么mybatis就会解析为<mapList,map>,所以我们可以在collection里写mapList
+所以我们如果要传多个List,而在循环的不知道指定的是循环的哪一个,那么我们可以使用@Param()进行指定名字!
+```
+
+
+
 # 3.where标签
 
 where用来去掉多条件查询时，开头多余的and,等同于1=1

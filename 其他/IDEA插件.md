@@ -39,4 +39,14 @@
 33. **SonarLint**:扫描代码规范
 34. **Translation**:翻译插件
 35. **MavenHelper**:Maven助手主要解决依赖的!
+36. **Restful Fast Request**:快速生成postman接口测试
 
+
+
+
+
+****
+
+以上如果在idea插件市场缓慢的话那么可以看这篇文章:
+
+https://blog.csdn.net/Real_CSDN_User/article/details/113944496

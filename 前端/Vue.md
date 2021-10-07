@@ -1156,3 +1156,841 @@ data.json:
 
 我们在使用上述插槽的时候,我们仅仅用于展示出来, 我们通过不同的插槽组件进行替换,而组件中用props进行参数传递,现在我们需要的如何进行动态删除?
 
+我先展示完整的代码:
+
+```vue
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>插槽-自定义事件</title>
+</head>
+<body>
+
+<div id="app">
+    <todo>
+        <todo-title slot="todo-title" :title="title"></todo-title>
+        <!--增加了 v-on:remove="removeTodoItem(index)" 自定义事件，该事件会调用 Vue 实例中定义的名为 removeTodoItem 的方法-->
+        <!--这里remove为自定义事件名,然后调用Vue实例中的方法,这里key进行绑定自定义事件分发的参数-->
+        <!--
+			slot="todo-items":绑定插槽
+			v-for="(item,index) in todoItems":获取实例中的数据项进行循环,这里不仅获取循环的元素和下标
+			:item="item" :index="index": 这里前面的item和index指的是组件中的props的参数,后面的item和index指的循环的元素和下标
+			v-on:remove="removeItem(index)":绑定事件,remove:自定义事件名跟组件中自定义事件名保持一致,removeItem(index)指Vue实例中的函数方法
+			:key="index":绑定参数key为index,这里index为组件中自定义事件传递的参数名
+		-->
+        <todo-items slot="todo-items" v-for="(item,index) in todoItems" :item="item" :index="index" v-on:remove="removeItem(index)" :key="index"></todo-items>
+    </todo>
+</div>
+</body>
+<!--导入Vue.js-->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vue@2.5.21/dist/vue.min.js"></script>
+<script>
+    Vue.component("todo",{
+        template :
+            '<div>'+
+                '<slot name="todo-title"></slot>'+
+                '<ul>'+
+                    '<slot name="todo-items"></slot>'+
+                '</ul>'+
+            '</div>'
+    })
+
+    Vue.component('todo-title',{
+        props:['title'],
+        template :'<div>{{title}}</div>'
+    })
+    Vue.component('todo-items',{
+        props : ['item','index'],
+        //绑定事件函数,我们这里当前组件只能绑定当前事件,不能用这里的组件去调用Vue实例里的函数,会找不到!
+        template :'<li>{{index}} ~ {{item}}<button @click="remove">删除</button></li>',
+        methods : {
+            remove : function(index) {
+                //我们要通过这个函数去操作Vue实例中节点
+                //这里我们定义自定义事件 , emit自定义事件分发
+                // 这里的 remove 是自定义事件的名称，需要在 HTML 中使用 v-on:remove 的方式指派
+                this.$emit('remove',index)
+            }
+        }
+    })
+
+
+    var vm = new Vue({
+        //el元素绑定必须存在,
+        el: '#app',
+        data : {
+            title: '书籍列表',
+            todoItems : ['测试1','测试2']
+        },
+        methods : {
+            // 该方法可以被模板中自定义事件触发
+            removeItem : function(index) {
+                console.log("删除 " + this.todoItems[index] + " 成功");
+                //这里使用JS中的splice()方法区删除,有三个参数:第一个是指定下标,第二个参数是删除多少个元素, 第三个参数是一个可变参数,表示添加的元素
+                this.todoItems.splice(index, 1);
+            }
+        }
+    })
+</script>
+```
+
+接下来解释每一步步骤和思路:
+
+1. 在vue的实例中,增加了 methods 对象并定义了一个名为 removeTodoItem 的方法用于删除数组元素
+
+   ```vue
+   <script>
+   var vm = new Vue({
+           //el元素绑定必须存在,
+           el: '#app',
+           data : {
+               title: '书籍列表',
+               todoItems : ['测试1','测试2']
+           },
+           methods : {
+               // 该方法可以被模板中自定义事件触发
+               removeItem : function(index) {
+                   console.log("删除 " + this.todoItems[index] + " 成功");
+                   //这里使用JS中的splice()方法区删除,有三个参数:第一个是指定下标,第二个参数是删除多少个元素, 第三个参数是一个可变参数,表示添加的元素
+                   this.todoItems.splice(index, 1);
+               }
+           }
+       })
+   </script>
+   ```
+
+2. 修改todo-items组件中的代码,增加一个删除按钮,并且我们绑定一个事件,在事件里我们增加一个自定义事件进行参数传递与事件分发
+
+   ```vue
+   <script>
+   Vue.component('todo-items',{
+           props : ['item','index'],
+           //绑定事件函数,我们这里当前组件只能绑定当前事件,不能用这里的组件去调用Vue实例里的函数,会找不到!
+           template :'<li>{{index}} ~ {{item}}<button @click="remove">删除</button></li>',
+           methods : {
+               remove : function(index) {
+                   //我们要通过这个函数去操作Vue实例中节点
+                   //这里我们定义自定义事件 , emit自定义事件分发
+                   // 这里的 remove 是自定义事件的名称，需要在 HTML 中使用 v-on:remove 的方式指派
+                   this.$emit('remove',index)
+               }
+           }
+       })
+   </script>
+   ```
+
+   > 这里就比较关键了,这里的目的与作用就是给删除按钮绑定一个事件,通过当前组件调用当前函数方法,然后在方法内我们想要去操作Vue实例中的数据项,那么就采用自定义事件来解决!
+
+3. 修改 todo-items内容组件的 HTML 代码,增加一个自定义事件,比如叫 remove,可以和组件的方法绑定,然后绑定到vue的方法中!
+
+   ```vue
+    <todo-items slot="todo-items"  v-for="(item,index) in todoItems" 
+                :item="item" :index="index" v-on:remove="removeItem(index)" :key="index"></todo-items>
+   ```
+
+   因为在组件中我们添加了一个自定义事件,然后既然是事件那么我们这里进行绑定该事件,然后通过自定义事件调用Vue实例中的函数方法,传递参数是index;
+
+> 通过以上代码不难发现，数据项在 Vue 的实例中，但删除操作要在组件中完成，那么组件如何才能删除Vue 实例中的数据呢？此时就涉及到参数传递与事件分发了，Vue 为我们提供了自定义事件的功能很好
+> 的帮助我们解决了这个问题；使用 this.$emit('自定义事件名', 参数)
+
+**逻辑理解**:
+
+![image-20211006213605016](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006213605016.png)
+
+这里前端是可以直接调用Vue对象中的方法,因为这里前端跟Vue对象是绑定了的,通过`el:#APP`进行绑定;而组件跟前端也是绑定了的,是通过插槽的方式`<slot>`进行绑定;而我们想从组件3中进行删除Vue对象中的数据项,但是Vue是不能通过一个组件去调用Vue对象中去,那怎么办呢?我们只能通过前端这个东西进行搭桥,通过`this.#emit`跟前端自定义事件进行绑定,然后前端这个自定义事件的值就去调用Vue对象中的方法!
+
+> 自定义事件用于将组件和Vue对象进行绑定在一起,进行调用!
+
+## 9.小结
+
+**核心**:以数据驱动并且组件化
+
+> 数据驱动:React的虚拟DOM, 组件化:Angular的模块化
+
+**优点**:借鉴了AngularJS的模块化开发和React的虚拟DOM,虚拟DOM就是把DOM操作放在内存中执行;
+
+**常用的属性**:
+
+- v-if
+- v-else-if
+- v-else
+- v-for
+- v-on 绑定事件,简写`@`
+- v-model 数据双向绑定
+- v-bind 给组件绑定参数,简写`:`
+
+**组件化**:
+
+- 组合组件slot插槽
+- 组件内部绑定事件需要使用到`this.$emit('事件名',参数)`
+- 计算属性的特色,缓存计算数据
+
+> 遵循SoC关注度分离原则,Vue是纯粹的视图框架,并不包含,比如Ajax之类的通信功能,为了解决通信问题,我们需要使用Axios框架做异步通信;
+
+**说明**:
+
+​	Vue的开发都是要基于NodeJS,实际开发采用vue-cli脚手架开发,vue-router路由,vuex做状态管理;Vue UI界面我们一般使用ElementUI(饿了么出品),或者ICE(阿里巴巴出品)来快速搭建前端项目
+
+官网:
+
+- https://element.eleme.cn/#/zh-cn
+- https://ice.work
+
+
+
+## 10.Vue-Cli
+
+vue-cli 官方提供的一个脚手架,用于快速生成一个vue的项目模板!
+
+> 脚手架:预先定义好的目录结构及基础代码,就好比咱们在创建Maven项目时可以选择创建一个骨架项目,这个骨架项目就是脚手架,它使我们的开发更加的快速!
+
+![image-20211006221809378](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006221809378.png)
+
+主要的功能:
+
+- 统一的目录结构
+- 本地调试
+- 热部署
+- 单元测试
+- 集成打包上线
+
+> node.js 是一个基于 Chrome V8 引擎的 JavaScirpt 运行环境。简单的说 Node.js 就是运行在服务端的 JavaScript。一种javascript的运行环境，能够使得javascript脱离浏览器运行。
+
+npm:
+
+```
+引入:
+当一个网站依赖的代码越来越多，程序员发现这是一件很麻烦的事情：
+去 jQuery 官网下载 jQuery
+去 BootStrap 官网下载 BootStrap
+去 Underscore 官网下载 Underscore
+……
+npm横空出世:用一个工具把这些代码集中到一起来管理吧,这个工具就是他用 JavaScript （运行在 Node.js 上）写的 npm，全称是 Node Package Manager
+```
+
+npm具体的步骤:
+
+NPM 的思路大概是这样的：
+
+1. 买个服务器作为代码仓库（registry），在里面放所有需要被共享的代码
+2. 发邮件通知 jQuery、Bootstrap、Underscore 作者使用 npm publish 把代码提交到 registry 上，分别取名 jquery、bootstrap 和 underscore（注意大小写）
+3. 社区里的其他人如果想使用这些代码，就把 jquery、bootstrap 和 underscore 写到 package.json 里，然后运行 npm install ，npm 就会帮他们下载代码
+4. 下载完的代码出现在 node_modules 目录里，可以随意使用了
+
+> 这些可以被使用的代码被叫做「包」（package），这就是 NPM 名字的由来：Node Package(包) Manager(管理器)。
+
+### 10.1 需要的环境
+
+- Node.js:http://nodejs.cn/download/
+- Git:https://git-scm.com/downloads
+
+下载node.js自带了npm,所以我们这里可以直接打印npm的版本
+
+确认node.js安装成功,我们在cmd命令里输入:*node -v*和*npm -v*
+
+![image-20211006223136303](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006223136303.png)
+
+> 这个npm,就是一个软件包管理工具,就和maven一样,这个npm里面有好多的软件,我们要的话直接放依赖就可以了
+
+- 安装Node.js淘宝镜像加速器(cnpm),这样下载速度会得到极大的提升!
+
+```properties
+# -g就是全局安装
+npm install cnpm -g
+# 或每次使用的时候添加如下语句就可以解决 npm速度慢的问题
+npm install --registry=https://registry.npm.taobao.org
+```
+
+> 我们一般使用npm去安装东西,如果安装失败,我们就可以考虑cnpm,优先级依然是npm
+
+安装:
+
+![image-20211007085623114](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007085623114.png)
+
+那么我们可以去对应的安装目录查看:
+
+![image-20211007085739061](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007085739061.png)
+
+好以后我们安装就可以直接使用`cnpm`来进行安装,因为这个使用的是国内淘宝镜像,速度比直接使用`npm`访问国外要快许多
+
+- 安装vue-cli
+
+```properties
+cnpm install vue-cli -g
+# 测试是否安装成功
+# 查看可以基于哪些模板创建 vue 应用程序，通常我们选择 webpack
+vue list
+```
+
+安装完毕后在文件夹中可以查看:
+
+![image-20211007090724111](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007090724111.png)
+
+接下来我们查看有哪些模板?
+
+![image-20211007090926868](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007090926868.png)
+
+### 10.2 快速使用
+
+1. 创建一个空的文件夹`vue-cli`;
+
+2. 创建一个基于 webpack 模板的 vue 应用程序
+
+   ```properties
+   # 这里的 myvue 是项目名称，可以根据自己的需求起名
+   # vue 初始化一个 webpack项目,这个项目名字叫 myvue
+   vue init webpack myvue
+   # 一路都选择no即可;
+   ```
+
+   这是输入的:
+
+   ![image-20211007092554804](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007092554804.png)
+
+   说明:
+
+   - Project name：项目名称，默认 回车 即可
+   - Project description：项目描述，默认 回车 即可
+   - Author：项目作者，默认 回车 即可
+   - Install vue-router：是否安装 vue-router，选择 n 不安装（后期需要再手动添加)
+   - Use ESLint to lint your code：是否使用 ESLint 做代码检查，选择 n 不安装（后期需要再手动添加）
+   - Set up unit tests：单元测试相关，选择 n 不安装（后期需要再手动添加）
+   - Setup e2e tests with Nightwatch：单元测试相关，选择 n 不安装（后期需要再手动添加）
+   - Should we run npm install for you after the project has been created：创建完成后直接初始化，选择 n，我们手动执行;运行结果!
+
+3. 执行完毕看文件夹:
+
+   ![image-20211007092745179](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007092745179.png)
+
+4. 初始化运行
+
+   ```properties
+   # 切换到myvue文件夹下
+   cd myvue 
+   # 安装依赖
+   npm install
+   # 运行启动
+   npm run dev
+   ```
+
+   注:安装依赖它是根据项目里有个文件`package.json`,我们点进去看全都是版本管理就跟maven的版本管理一样,它就会根据这个去安装依赖;
+
+   ![image-20211007093241216](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007093241216.png)
+
+   我们等待依赖安装完毕那么这个项目就初始化完成了!
+
+   启动完毕我们就执行`npm run dev`,
+
+   如果发现这一行:
+
+   *webpack-dev-server --inline --progress --config build/webpack.dev.conf.js*
+
+   表示要打包之后才能启动,它现在就在做打包这个事情!
+
+   ![image-20211007094117073](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007094117073.png)
+
+> 我们浏览器访问这地址我们就能看到项目了,而我们看8080这就是node的服务器,跟tomcat是一样的,node.js它是一个服务,他可以运行一些东西通过npm去运行安装依赖
+
+关闭服务在DOC命令使用快捷键`Ctrl+C`关闭服务!
+
+1. 目录结构
+
+   ![image-20211007095915830](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007095915830.png)
+
+   - build 和 config：WebPack 配置文件,如果要改端口就去config文件夹下的index.js修改
+   - node_modules：用于存放 npm install 安装的依赖文件
+   - src： 项目源码目录
+   - static：静态资源文件
+   - .babelrc：Babel 配置文件，主要作用是将 ES6 转换为 ES5
+   - .editorconfig：编辑器配置
+   - eslintignore：需要忽略的语法检查配置文件
+   - .gitignore：git 忽略的配置文件
+   - .postcssrc.js：css 相关配置文件，其中内部的 module.exports 是 NodeJS 模块化语法
+   - index.html：首页，仅作为模板页，实际开发时不使用
+   - package.json：项目的配置文件
+     - name：项目名称
+     - version：项目版本
+     - description：项目描述
+     - author：项目作者
+     - scripts：封装常用命令
+     - dependencies：生产环境依赖
+     - devDependencies：开发环境依赖
+
+2. src目录(目录是项目的源码目录，所有代码都会写在这里！):
+
+   ![image-20211007100211250](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007100211250.png)
+
+   - main.js
+
+     ```js
+         // The Vue build version to load with the `import` command
+         // (runtime-only or standalone) has been set in webpack.base.conf with an alias.
+         import Vue from 'vue'
+         import App from './App'
+         Vue.config.productionTip = false;
+         /* eslint-disable no-new */
+         new Vue({
+          el: '#app',
+          components: { App },
+          template: '<App/>'
+         });
+     ```
+
+     - *import Vue from 'vue'*:ES6 写法，会被转换成 require("vue"); （require 是 NodeJS 提供的模块加载器）
+     - *import App from './App'* ：意思同上，但是指定了查找路径，./ 为当前目录
+     - *Vue.config.productionTip = false* ：关闭浏览器控制台关于环境的相关提示
+     - *new Vue({...})* ：实例化 Vue
+       - *el: '#app'* ：查找 index.html 中 id 为 app 的元素
+       - *template: ''* ：模板，会将 index.html 中替换为""
+       - *components: { App }* ：引入组件，使用的是 import App from './App' 定义的 App组件
+
+   - App.vue
+
+     ```vue
+     <template>
+       <div id="app">
+         <img src="./assets/logo.png">
+         <HelloWorld/>
+       </div>
+     </template>
+     
+     <script>
+     import HelloWorld from './components/HelloWorld'
+     
+     export default {
+       name: 'App',
+       components: {
+         HelloWorld
+       }
+     }
+     </script>
+     
+     <style>
+     #app {
+       font-family: 'Avenir', Helvetica, Arial, sans-serif;
+       -webkit-font-smoothing: antialiased;
+       -moz-osx-font-smoothing: grayscale;
+       text-align: center;
+       color: #2c3e50;
+       margin-top: 60px;
+     }
+     </style>
+     ```
+
+     - *template*：HTML 代码模板，会替换 <App/> 中的内容
+     - *import HelloWorld from './components/HelloWorld'*：引入 HelloWorld 组件用于替换 template中的 < HelloWorld/>
+     - *export default{...}*:导出 NodeJS 对象，作用是可以通过 import 关键字导入
+       - *name: 'App'*：定义组件的名称
+       - *components: { HelloWorld }*:定义子组件
+     - 在hello,Vue中,关于 < style scoped> 的说明：CSS 样式仅在当前组件有效，声明了样式的作用域,是当前的界面私有的!
+
+### 10.3 安装Webpack
+
+​	WebPack是一款模块加载器兼打包工具,它能把各种资源,如JS、JSX、ES6、SASS、LESS、图片等都作为模块来处理和使用
+
+安装:
+
+```properties
+# 打包工具
+npm install webpack -g
+# 客户端
+npm install webpack-cli -g
+# 以上两个都需要安装
+```
+
+测试安装成功:
+
+- webpack -v
+- webpack-cli -v
+
+![image-20211007105009001](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007105009001.png)
+
+配置:
+
+创建`webpack.config.js`配置文件
+
+- entry:入口文件,指定webpack用哪个文件作为项目的入口
+- output:输出,指定Webpack把处理完成的文件放置到指定路径
+- module:模块,用于处理各种类型的文件
+- plugins:插件,如:热更新、代码重用等
+- resolve:设置路径指向
+- watch:监听,用于设置文件改动后直接打包
+
+```js
+module.exports = {
+    entry:"",
+    output: {
+        path:"",
+        filename:""
+    },
+    module:{
+        loaders:[
+            {test:/\.js$/,loader:""}
+        ]
+    },
+    plugins:{},
+    resolve:{},
+    watch:true
+}
+```
+
+直接运行`webpack`命令打包
+
+#### 使用
+
+1. 创建项目
+
+2. 创建一个名为modules的目录,用于放置JS模块等资源文件
+
+3. 在modules下创建模块文件,如hello.js,用于编写JS模块相关代码
+
+   ```js
+   //暴露一个方法
+   exports.sayHi=function() {
+       document.write("<h1>试试ES6规范</h1>")
+   }
+   ```
+
+4. 在 modules下创建一个名为 main.s的入口文件，用于打包时设置 entry属性
+
+   ```js
+   //因为这里引入模块,所以不能写hello.js,直接写名字就可以了
+   //hello.js中可以暴露很多个方法,但是这里只用require接收hello这个对象,通过这个对象去调用方法
+   var hello = require("./hello");
+   //这个hello我们就引进来了,所以我们可以通过这个hello调用hello.js中方法
+   hello.sayHi()
+   ```
+
+5. 在项目目录下创建 webpack.config.js配置文件，使用 webpack命令打包
+
+   ```js
+   //模块导出
+   module.exports ={
+       //程序入口
+       entry:"./modules/main.js",
+       //程序打包输出到哪
+       output:{
+           //规范命名
+           filename:"./js/bundle.js"
+       }
+   }
+   ```
+
+6. 我们在终端执行`webpack`这个命令,等待一下我们就能在modules同级目录看到有个js目录下有个buundle.js,说明我们打包成功了!
+
+   接下里我们在测试一下
+
+7. 我们新建一个index.html,然后将打包压缩的js进行导入进来
+
+   ```html
+   <!DOCTYPE html>
+   <html lang="en">
+   <head>
+       <meta charset="UTF-8">
+       <title>首页</title>
+   </head>
+   <body>
+   <script type="text/javascript" src="dist/js/bundle.js"></script>
+   </body>
+   </html>
+   ```
+
+8. 页面:
+
+   ![image-20211007143642068](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007143642068.png)
+
+> 以后我们的项目里html就直接导入打包好的JS,无论项目多复杂,只需要webpack打包压缩,然后我们只需导入就OK,这样说明了Vue为什么只有一个主入口,前端工程化了之后就不需要那么多的页面了,就全都是一个一个的Vue组件或者JS组件,这就是前端的模块化开发 
+
+webpack就是一个打包工具,选择从哪个地方的入口自动帮你把这个入口里面所需要的所有东西通过它的方式打包起来运行!
+
+
+
+我们可以用**webpack --watch**用于监听变化,实现热部署,只要发生了变化就立马打包好!就不断监听你的操作, 
+
+
+
+## 11.vue-router路由
+
+**描述**:Vue Router是Vue.js官方的路由管理器。它和Vue.js的核心深度集成,让构建单页面应用变得易如反掌!
+
+**包含功能**:
+
+- 嵌套的路由/视图表
+- 模块化的、基于组件的路由配置
+- 路由参数、查询、通配符
+- 基于Vue.js过渡系统的视图过渡效果
+- 细粒度的导航控制
+- 带有自动激活的CSS class的链接
+- HTML5历史模式或hash模式,在IE9中自动降级
+- 自定义的滚动条行为
+
+> 理解:因为Vue是纯粹的视图层框架,是SoC原则(关注度分离原则),只关注视图层,其他都做不了,所以把跳转页面路由交给了vue-router组件
+
+### 1.安装
+
+vue-router 是一个插件包，所以我们还是需要用 npm/cnpm 来进行安装的。打开命令行工具，进入你的项目目录，输入下面命令:
+
+```properties
+#  --save-dev:它会保存到我们开发的配置里面
+npm install vue-router --save-dev
+```
+
+> 说白了就是安装vue-router到node_modules 里面去,就跟Java的导包一样
+
+如果在一个模块化工程中使用它，必须要通过 Vue.use() 明确地安装路由功能:
+
+```java
+//在导入的时候,后面的'vue'是导入的名字,前面的Vue是导入进来的名字,也就是说后面的名字我们不能乱改,但是前面的名字我们可以修改
+
+//这里是从模块里获取的,而这个模块是去node_modules下去找的
+import Vue from 'vue'
+//这是从我们自己定义的获取的-当前目录下
+import App from './App'
+//导入vue-router
+import VueRouter from 'vue-router'
+// 显示的使用
+Vue.use(VueRouter);
+```
+
+### 2.使用
+
+1. 定义组件 Content.vue 组件
+
+   ```vue
+   <template>
+     <h1>内容页</h1>
+   </template>
+   
+   <script>
+   /*
+      这里定义导出,那其他地方如何导入呢?
+      import Content from './compoents/Content'
+    */
+   export default {
+     name: "Content"
+   }
+   </script>
+   <!--
+     scoped:作用域,相当于说这个页面的style只在当前模板中有效,
+   -->
+   <style scoped>
+   
+   </style>
+   ```
+
+2. 我们现在新建一个Main.vue组件
+
+   ```vue
+   <template>
+   <h1>首页</h1>
+   </template>
+   
+   <script>
+   export default {
+     name: "main"
+   }
+   </script>
+   
+   <style scoped>
+   
+   </style>
+   ```
+
+3. 新建文件夹用于专门存放路由,并且写入index.js
+
+   ```js
+   import Vue from "vue";
+   //导入路由插件
+   import VueRouter from "vue-router"
+   import Content from "../components/Content";
+   import Main from "../components/main";
+   //安装路由 显示声明使用VueRouter
+   Vue.use(VueRouter);
+   
+   //这个文件就是专门的路由文件
+   
+   //配置导出路由,导出一个默认的对象,
+   export default new VueRouter({
+     routes : [
+       {
+         //路由路径  相当于后端的@RequestMapping
+         path : "/content",
+         //路由的名字
+         name : "content",
+         //跳转的组件
+         component : Content
+       },{
+         //路由路径
+         path : "/main",
+         //路由的名字
+         name : "main",
+         //跳转的组件
+         component : Main
+       }
+     ]
+   })
+   ```
+
+4. 在 **main.js** 中配置路由
+
+   ```js
+   //从vue组件里导入过来
+   import Vue from 'vue'
+   import App from './App'
+   //导入我们刚刚写的路由配置
+   import router from './router/index'  //我们可以不用写index,因为它会自动扫描里面的路由配置,去默认加载index
+   
+   Vue.config.productionTip = false
+   
+   new Vue({
+     el: '#app',
+     //配置路由,我们只需要将router给它就好了,他会自动的去做,类似于我们springBoot启动类上的注解@SpringBootApplication
+     router,
+     components: { App },
+     template: '<App/>'
+   })
+   ```
+
+5. 在 **App.vue** 中使用路由
+
+   ```vue
+   <template>
+     <div id="app">
+   <!--    <h1>APP</h1>-->
+       <!--
+         to可以理解为href属性
+       -->
+       <h1>Vue-Router</h1>
+       <!--router-link： 默认会被渲染成一个 <a> 标签，to 属性为指定链接-->
+       <router-link to="/main">首页</router-link>
+       <router-link to="/content">内容页</router-link>
+       <!--展示template模板-->
+       <router-view></router-view>
+     </div>
+   </template>
+   
+   <script>
+   
+   export default {
+     name: 'App'
+   }
+   </script>
+   
+   <style>
+   #app {
+     font-family: 'Avenir', Helvetica, Arial, sans-serif;
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
+     text-align: center;
+     color: #2c3e50;
+     margin-top: 60px;
+   }
+   </style>
+   ```
+
+6. ![image-20211007160747853](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007160747853.png)
+
+7. 我们启动测试一下:**npm run dev**
+
+   ![image-20211007160654361](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007160654361.png)
+
+总结:总的来说就是我们有很多组件,然后我们通过一个js进行管理跳转这个组件,然后这个js就被需要的地方引入即可,他会自动去找这个路由!
+
+1. ## 解决路由中带#号问题:
+
+路由模式有两种:
+
+1. hash：路径带 # 符号，如 http://localhost/#/login
+2. history：路径不带 # 符号，如 http://localhost/login
+
+我们修改路由配置:
+
+```js
+export default new VueRouter({
+  mode:"history",
+  routes: []
+}
+```
+
+这样我们看页面路由:
+
+![image-20211007161909219](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007161909219.png)
+
+2. ## 404问题
+
+   首先我们创建一个组件然后添加到路由中去
+
+   ```vue
+   <template>
+     <div>
+       页面不存在，请重试！
+       </div>
+   </template>
+   
+   <script>
+   export default {
+     name: "NotFount"
+   }
+   </script>
+   
+   <style scoped>
+   
+   </style>
+   ```
+
+   添加路由:
+
+   ```js
+   import NotFount from "../components/NotFount";
+   {
+       path : "*",
+       component:NotFount
+   }
+   ```
+
+   看效果:
+
+   ![image-20211007162124254](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007162124254.png)
+
+## 12.Vue-ElementUI
+
+这是将ElementUI与Vue进行结合,进行实际操作:
+
+### 1.创建工程
+
+1. 创建一个名为hello-vue的工程`vue init webpack hello-vue`
+2. 安装依赖，我们需要安装vue-router、element-ui、sass-loader和node-sas5四个插件
+
+```properties
+#进入工程目录
+cd he11o-vue
+#安装vue-router 
+npm install vue-router --save-dev
+#安装element-ui 
+npm i element-ui -s
+#安装依赖
+npm install
+#安装SASS加载器(前端有些东西不能用纯CSS来写,所以需要通过SASS去编译),这里用cnpm是因为npm是国外的有些东西下载不下来
+cnpm install sass-loader node-sass --save-dev
+#启动测试
+npm run dev
+```
+
+3. npm命令解释:
+
+   - `npm install moduleName`:安装模块到项目目录下
+   - `npm install -g moduleName`:-g的意思是将模块安装到全局,具体的安装到磁盘哪个位置,要看npm config prefix的位置
+   - `npm install -save moduleName`:--save的意思是将模块安装到项目目录下,并在package文件的dependencies节点写入依赖,-S为该命令的缩写
+   - `npm install --save-dev moduleName`:--save-dev的意思是将模块安装到项目目录下,并在package文件的devDependencies节点写入依赖,-D为该命令的缩写
+
+4. 此时看目录结构:
+
+   ![image-20211007202825376](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007202825376.png)
+
+5. 页面:
+
+   ![image-20211007202838045](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007202838045.png)
+
+...接下来就去饿了么UI官网搬砖使用:
+
+https://element.eleme.cn/#/zh-CN/

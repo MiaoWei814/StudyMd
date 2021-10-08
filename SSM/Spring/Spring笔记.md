@@ -57,6 +57,10 @@ IOC也称控制反转,IOC是一种设计思想,在开发中,将你设计好的�
 
 通俗点讲，因为项目中每次创建对象是很麻烦的，所以我们使用Spring IOC容器来管理这些对象,需要的时候你就直接用,而不用管他怎么来的,什么时候要销毁,对于我们只管用就可以了
 
+画图理解：
+
+![image-20211008160644540](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008160644540.png)
+
 ### 2.1 DI
 
 **概念:**提到IOC就不得不提DI,DI全称(Dependency Injection)依赖注入,是IOC容器装配、注入对象的一种方式
@@ -837,6 +841,14 @@ xml:
                 <property name="teacherName" value="构造方法老师名称"/>
                 <property name="teacherAge" value="123"/>
         </bean>
+<!--
+	参数解释:
+		1.name:字段名
+		2.value:值
+		3.ref:引用类型值
+		4.index:构造方法参数对应的顺序,从1开始,如果不写那么默认从左往右
+		5.type:指字段的类型
+-->
 ```
 
 > 注意:这里使用constructor-arg的时候如果不指定index那么就会按照构造方法的参数顺序进行依次赋值,而index是指定的话是从0开始
@@ -1087,6 +1099,8 @@ xml:
 
    ```xml-dtd
    <bean id="arr" class="hello.demo.arrayBean.ArrayBean">
+   				<!--还有一种简单写法,缺点:是按逗号分隔开的数组,而一旦遇到字符串本身就是逗号的字符串,那么就无法处理了!-->
+   				<!-- <property name="arrayInt" value="2,3,4"/>-->
                    <property name="arrayInt">
                        <array>
                            <value>2</value>
@@ -1121,7 +1135,7 @@ xml:
 
    ![image-20210903191031475](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210903191031475.png)
 
-2. ### List集合类型注入
+2. ### List集合类型注入和Set
 
    这里的话跟上面没什么区别只是由原来的标签`<array>`改成了`<lsit>`而已
 
@@ -1131,8 +1145,12 @@ xml:
    	<bean id="arr" class="hello.demo.arrayBean.ArrayBean">
                    <property name="personList">
                        <list>
+   						<!--外部bean可以重复使用,一个对象,这两个引用都是一个地址,因为引用都是已经创建好了的-->
                            <ref bean="person"/>
                            <ref bean="person"/>
+   						<!-- 内部bean,是新创建的,两次地址都不一样,是因为每次创建<bean>都是新创建的-->
+   						<bean id="person" class="hello.demo.arrayBean.Person" p:name="哇塞"/>
+   						<bean id="person" class="hello.demo.arrayBean.Person" p:name="哇塞"/>
                        </list>
                    </property>
                    <property name="integerList">
@@ -1144,6 +1162,8 @@ xml:
                </bean>
        <bean id="person" class="hello.demo.arrayBean.Person" p:name="哇塞"/>
        <bean id="person1" class="hello.demo.arrayBean.Person" p:name="大哇塞"/>
+   <!--使用Set类型注入-->
+   <!--跟以上使用方式一模一样,我们只需要将<List>替换为<Set>即可-->
    ```
 
    多个元素注入就用list,如果只注入一个就直接:
@@ -1195,9 +1215,26 @@ xml:
 
 4. ### Properties的注入
 
+   第一种方式:这是支持中文的:
+   
    ![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/20180807153755364)
-
-
+   
+   第二种方式:这是不支持中文的:
+   
+   ```xml-dtd
+   <property name="pros1">
+       <value>
+           name=tom
+           jpa.driveClassName=com.mysql.jdbc.Driver
+   		<!--
+   			还有种写法:
+   			name tom
+   		-->
+       </value>
+   </property>
+   ```
+   
+   
 
 #### 2.4.5 Bean自动装配
 
@@ -1784,6 +1821,8 @@ public class Zoo1 {
 
 ## 3.AOP
 
+### 3.1 简介
+
 AOP-**面向切面编程**和OOP-**面向对象编程**类似,也是属于一种编程思想!
 
 **概念:**AOP采取横向抽取机制(动态代理),取代了传统纵向继承机制的重复性代码,其应用主要体现在事务处理、日志管理、权限控制、异常处理等方面
@@ -1791,6 +1830,8 @@ AOP-**面向切面编程**和OOP-**面向对象编程**类似,也是属于一种
 **作用：**主要是作用是分离功能性需求和非功能性需求，使开发人员可以集中处理某一个关注点或者横切逻辑，减少了对业务代码的侵入，增强代码的可阅读性和可维护性
 
 > 简单的说：AOP的作用就是保住开发者在不修改源代码的前提下，为系统中的业务组件添加某种通用功能，AOP就是代理模式的典型应用！
+
+![image-20211008160719311](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008160719311.png)
 
 目前流程的AOP框架主要有两个：
 
@@ -1811,7 +1852,11 @@ AOP-**面向切面编程**和OOP-**面向对象编程**类似,也是属于一种
 
 **理解：**AOP是横向切面编程，这里什么叫横向？既然提到横向那么就会提到纵向，首先纵向可以理解为从上往下的，而在Java代码中继承就是这样的例子，如果我们继承的类过于多，就会一层一层的往下堆积（子类可以继承父类祖父类），这就会使代码变得高耦合！-》这就是纵向，而所谓的横向我可以理解为是一块面包，是从往右的那种，而面向切面编程也就是说我们可以在这块面包上的左右两边可以切一刀放入其他东西比如番茄酱，而在Spring框架中可以动态切入，这样我们就可以不用一个类继承一个类这样子去实现某个功能点！需要时直接切入进去，这就是面向切面编程！
 
-### 3.1 AOP术语
+AOP理解：
+
+![image-20211008160925600](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008160925600.png)
+
+### 3.2 AOP术语
 
 首先我们使用AOP那么得先理解它的相关术语，至少让我们看到某些词汇不要太过于陌生：
 
@@ -1821,7 +1866,7 @@ AOP-**面向切面编程**和OOP-**面向对象编程**类似,也是属于一种
 | Pointcut(切入点)  | 指要对哪些Joinpoint进行拦截,即被拦截的连接点;也可以理解为在目标对象中对连接点方法之前或者之后或者抛出异常时干点什么 |
 |   Advice(通知)    |     指拦截到Joinpoint之后要做的事情,即对切入点增强的内容     |
 |   Target(目标)    |           指被代理对象,被通知的对象,被增强的类对象           |
-|   Weaving(植入)   |              将通知应用到连接点形成切入点的过程              |
+|   Weaving(织入)   |              将通知应用到连接点形成切入点的过程              |
 |    Proxy(代理)    |             将通知植入到目标对象之后形成代理对象             |
 |   Aspect(切面)    |                      切入点和通知的结合                      |
 
@@ -1841,7 +1886,41 @@ Aspect:通知(Advice)说明了干什么的内容(即方法体代码)和什么时
 
 > 这里只是提出了一些AOP相关术语,看不懂没关系我也看不懂,接下来通过一些练习和讲解就能慢慢去理解!
 
-### 3.2 JDK动态代理
+### 3.3 Spring实现AOP的方案:
+
+​	早期Spring是自己实现AOP，后期改回使用标准的aspects(面向切面编程),Spring使用动态代理织入。那么也就是Spring支持我们在方法的前后添加增强代码。
+
+**注**:由咱们自己来完成动态代理确实是非常麻烦，不过并不用太过担心,因为Spring已经帮咱们把困难的部分完成，我们只需要做一些简单的配置就可以完成相应的功能;
+
+配置的时候要记住三要素:`何时`、`何地`、`做什么事`
+
+1. 何时:在执行方法之前/之后/有异常...
+2. 何地:在哪些包中的哪些类的哪些方法上面执行
+3. 做什么事:在UserServie中执行update方法之前添加日志
+
+> AOP底层就是使用代理模式中的动态代理实现的
+
+Spring实现AOP的方案:
+
+​	Spring实现AOP有两种方案:**JDK**与**CGLIB**
+
+如何去选择?
+
+1. 若目标对象实现了若干接口
+   - spring使用JDK的java.lang.reflect.Proxy类代理;
+2. 若目标对象没有实现任何接口
+   - spring使用CGLIB库生成目标对象的子类
+
+```
+注意事项:
+	1.对接口创建代理优于对类创建代理,因为会产生更加松耦合的系统
+		- 对类代理是让遗留系统或无法实现接口的第三方类库同样可以得到通知,这种方案应该是备用方案!
+	2.标记为final的方法不能够被通知
+	3.spring是为目标类产生子类,任何需要被通知的方法都被复写,将通知织入,final方法是不允许被重写的!
+	4.AOP是一种思想,跟语言没什么关系,不是Spring独有的,可以理解为根spring本身没有什么关系!
+```
+
+### 3.4 JDK动态代理
 
 Spring JDK 动态代理需要实现 InvocationHandler 接口，重写 invoke 方法，客户端使用 Java.lang.reflect.Proxy 类产生动态代理类的对象。
 
@@ -1987,7 +2066,7 @@ public class JdkProxy implements InvocationHandler {
 
 **注意:**必须代理的目标类要实现一个或多个接口
 
-### 3.3 CGLIB动态代理
+### 3.5 CGLIB动态代理
 
 从JDK动态代理可以看出使用起来确实要方便很多,但是有一个缺点就是目标类必须要实现一个或多个接口,这种具有一定的局限性,那假如我就是不想实现接口就是单纯的一个类而已那么则就会动态代理失效的情况!
 
@@ -2082,7 +2161,7 @@ public class CglibProxy implements MethodInterceptor {
 
 跟之前的结果是一模一样的!
 
-### 3.4 区别
+### 3.6 区别
 
 我们使用`JDK动态代理`和`CGLIB动态代理`的执行效果都是一样的,那我们在使用的该如何去选择和判断两者之间有什么区别呢?
 
@@ -2110,9 +2189,23 @@ public class CglibProxy implements MethodInterceptor {
 - 生成代理实例性能:JDK>CGLIB
 - 代理实例运行性能: JDK>CGLIB
 
+总结：
+
+JDK动态代理：
+
+```
+有接口的类使用JDK的动态代理(JDK动态代理不支持没有接口的类)，如果有n个接口,必然有n个实现,只用写1个代理类JDKProxy就可以对所有有接口进行处理，如果有代理主题角色存在,必须修改调用方才能实现代理
+```
+
+CGLIB动态代理：
+
+```
+没有接口的类使用CGLIB动态代理(类有没有接口都可以支持)，只用写1个代理类CglibProxy就可以对所有没有接口的不能是final类都进行处理，如果有代理主题角色存在,必须修改调用方才能实现代理
+```
 
 
-### 3.5 AspectJ
+
+### 3.7 AspectJ
 
 之前学习JDK动态代理和CGLIB都是基于代理类的AOP实现,而现在又在它们之上又推出一个新的AOP方式:`AspectJ`
 
@@ -2120,7 +2213,7 @@ public class CglibProxy implements MethodInterceptor {
 
 而实现`AspectJ`有两种方式:XML配置文件形式、注解形式
 
-#### 3.5.1 XML
+#### 3.7.1 XML
 
 在使用XML形式进行声明式定义切面、切入点及通知，而所有的切面和通知都必须定义在`<aop:config>`元素中!
 
@@ -2245,7 +2338,7 @@ public class CglibProxy implements MethodInterceptor {
 </project>
 ```
 
-> 可能用不了那么多但是我还是想全部提进去!
+> 可能用不了那么多但是我还是想全部提进去!貌似只有注解才会导包,使用xml配置文件只需要导入命名空间就可以了!
 
 我们直接先上栗子:
 
@@ -2289,6 +2382,24 @@ public class Logging {
   public void afterThrowingAdvice(RuntimeException e) {
     System.out.println("这里的异常为:" + e.toString());
   }
+    
+  //环绕通知,这里调用,ProceedingJoinPoint是固定的
+  public void around(ProceedingJoinPoint pjp){
+        try {
+            // 开启事务
+            beforeAdvice();
+            pjp.proceed();  // 相当于调用方法,这里就相当于模拟了在调用方法之前和之后所调用切面的方法
+            // 提交事务
+            afterReturningAdvice();
+        } catch (Throwable e) {
+            // 回滚
+            afterThrowingAdvice(e);
+        }finally {
+            //  关闭
+            afterAdvice();
+        }
+
+  }
 }
 ```
 
@@ -2317,9 +2428,9 @@ public class Man {
     this.age = age;
   }
 
-  public void throwException() {
+  public void throwException(Throwable e) {
     System.out.println("抛出异常");
-    throw new RuntimeException();
+    throw new RuntimeException(e.getMessage);
   }
 }
 ```
@@ -2327,14 +2438,31 @@ public class Man {
 来进行xml配置:
 
 ```xml-dtd
-<!--配置AOP-->
+<!--配置AOP,何时,何地,做什么事-->
         <aop:config>
+			<!--
+				切面,何时
+				ref:哪个bean切进去
+			-->	
             <aop:aspect id="log" ref="loging">
+				<!-- 
+					切点,何地
+					*:任意返回值
+					..:任意参数
+				-->
                 <aop:pointcut id="selectAll" expression="execution(* hello.demo.AOP.*.*(..))"/>
+				<!--做什么事-->
+				<!--前置通知:在哪个方法前执行xx方法-->
                 <aop:before method="beforeAdvice" pointcut-ref="selectAll"/>
+				<!--最终通知:最终方法,整个方法执行结束完毕执行-->
                 <aop:after method="afterAdvice" pointcut-ref="selectAll"/>
+				<!--后置通知:在哪个方法之后执行xx方法-->
                 <aop:after-returning method="afterReturningAdvice" pointcut-ref="selectAll" returning="retVal"/>
+				<!--异常通知,method:切面的方法,pointcut-ref:目标方法,throwing:抛出异常后将异常传给切面的方法里去,这里e必须跟切面中的方法接收参数名保持一致!-->
                 <aop:after-throwing method="afterThrowingAdvice" pointcut-ref="selectAll" throwing="e"/>
+
+                <!--环绕通知,一个环绕能代替以上的通知-->
+                <aop:around method="around" pointcut-ref="pointCut"></aop:around>
             </aop:aspect>
         </aop:config>
         <bean id="man" class="hello.demo.AOP.Man">
@@ -2343,6 +2471,10 @@ public class Man {
         </bean>
     <bean id="loging" class="hello.demo.AOP.Logging"/>
 ```
+
+这是理解图:
+
+![image-20211008154005562](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008154005562.png)
 
 测试:
 
@@ -2362,6 +2494,8 @@ public class Man {
 ![image-20210905090904730](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20210905090904730.png)
 
 从这里可以看出每调用一个方法那么这里都会使用切面定义进行调用!
+
+> 获取的时候必须是接口是父类!因为Aop底层是动态代理实现的,既然是代理我们就不能使用直接实现类去操作,所以我们需要使用它的父类或者接口去操作!
 
 这里我详细介绍一下关于xml中AOP的配置:
 
@@ -2433,7 +2567,9 @@ public class Man {
    4. 异常拦截通知———如果出现异常，就会调用
    5. 后置通知———目标方法运行之后调用(无论是否出现异常都会调用)
 
-#### 3.5.2 注解
+> 思考?如果在IO流进行方法处理的时候,必须抛出异常,那么这个时候我们不需要bean切面异常方法执行,那么我们就在service层进行捕获或者Controller进行捕获就可以了!就不会执行异常切面方法!
+
+#### 3.7.2 注解
 
 ​	尽管我们可以使用XML配置文件可以实现AOP开发,但是如果所有的相关配置都集中在配置文件中,势必会导致XML配置文件过于臃肿,从而给维护和升级带来一定的困难,所以注解就出来了,Spring框架可以根据这些注解生成AOP代理:
 
@@ -2453,6 +2589,8 @@ public class Man {
 我们使用注解那么也要在配置文件启动注解:
 
 ```xml-dtd
+//加入命名空间,命名空间上面 XML 已经写了!
+<!--切面注解-->
 <aop:aspectj-autoproxy>
 ```
 
@@ -2470,27 +2608,29 @@ import org.springframework.stereotype.Component;
  * @author: MiaoWei
  * @create: 2021-09-04 21:00
  */
+//Aspect相当于我们之前的<aop:aspect ref="xxx">
 @Aspect
 @Component
 public class Logging {
+   //切点,自定义方法, 
   @Pointcut("execution(* hello.demo.AOP.*.*(..))")
   private void mypointcut(){}
 
 
-  /** 前置通知 */
+  /** 前置通知,参数是切点,用方法名代替使用 */
   @Before("mypointcut()")
   public void beforeAdvice() {
     System.out.println("前置通知");
   }
 
-  /** 后置通知 */
+  /** 最终通知,整个方法执行完毕执行 */
   @After("mypointcut()")
   public void afterAdvice() {
     System.out.println("后置通知");
   }
 
   /**
-   * 返回后通知
+   * 返回后通知,就是方法执行后执行通知
    *
    * @param retVal ret瓦尔
    */
@@ -2509,6 +2649,28 @@ public class Logging {
   public void afterThrowingAdvice(RuntimeException e) {
     System.out.println("这里的异常为:" + e.toString());
   }
+    
+    /**
+     *  没用环绕通知之前：执行的顺序有问题
+     *  环绕通知： 没有任何问题
+     */
+    @Around("mypointcut()")
+    public void around(ProceedingJoinPoint pjp){
+        try {
+            // 开启事务,前置通知
+            beforeAdvice();
+            pjp.proceed();  // 相当于调用方法
+            // 提交事务
+            afterReturningAdvice();
+        } catch (Throwable e) {
+            // 回滚
+            afterThrowingAdvice(e);
+        }finally {
+            //  关闭
+            afterAdvice();
+        }
+
+    }
 }
 ```
 
@@ -2564,7 +2726,193 @@ public void around(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
 
 
 
-## 4.JDBC
+### 3.8 总结
+
+AOP是面向切面编程,是对咱们OOP的一个补充,Spring的AOP允许我们在方法的前后加上相应的功能进行增强!
+
+> Spring的AOP核心使用的是代理模式中的动态代理模式完成的
+
+代理模式分为两种:
+
+1. 静态代理:一对一的那种,为一个类生成一个代理对象,我们基本不用,
+2. 动态代理:众多类只用一个代理对象
+
+而我们Spring底层使用动态代理模式解决方案有两种:**JDK动态代理**、**CGLIB动态代理**
+
+而我们不用去考虑到底是选择第一个还是第二个,因为Spring底层会帮我们自动做选择:如果有接口的类那么默认选择JDK代理模式,反之CGLIB代理模式!
+
+Spring使用简单的配置让我们完成AOP
+
+1. XML
+2. 注解
+
+> 而我们在配置的时候只需要注意找到何时(方法前后,异常),何地(哪些类的哪些方法),做什么(安全中是添加事务)
+
+### 3.9 代理模式
+
+**定义**:代理模式的英文叫做Proxy或Surrogate，中文都可译为”代理“，所谓代理，就是一个人或者一个机构代表另一个人或者另一个机构采取行动。在一些情况下，一个客户不想或者不能够直接引用一个对象，而`代理对象可以在客户端和目标对象之间起到中介的作用`
+
+开发术语:
+
+- 抽象主题角色
+
+  ```
+  声明了真实主题和代理主题的共同接口，这样一来在任何可以使用真实主题的地方都可以是使用代理主题。
+  ```
+
+- 代理主题角色
+
+  ```
+  代理主题角色内部含有对真实主题的引用，从而可以在任何时候操作真实主题对象；代理主题角色提供一个与真实主题角色相同的接口，以便可以在任何时候都可以替代真实主题控制对真实主题的引用，负责在需要的时候创建真实主题对象（和删除真实主题对象）；代理角色通常在将客户端调用传递给真实的主题之前或之后(前置增强/通知，后置增强/通知)，都要执行某个操作，而不是单纯地将调用传递给真实主题对象。
+  ```
+
+- 真实主题角色
+
+  ```
+  定义了代理角色所代表地真实对象
+  ```
+
+理解:在之前使用XML方式进行AOP的时候,抽象主题角色就是接口,代理主题角色就是切面,真实主题角色就是要切入的类或者方法!
+
+![image-20211008174251927](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008174251927.png)
+
+具体生活中例子:
+
+![image-20211008174316342](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008174316342.png)
+
+## 4.创建Bean的方式
+
+### 4.1 第一种
+
+**实例化一个有公共无参构造的方法**
+
+```xml
+<bean id="myBean" class="cn.itsource._05_createbean._01.MyBean"></bean>
+```
+
+xml中创建<bean>标签就可以创建一个bean
+
+### 4.2 第二种
+
+**集成静态简单工厂**
+
+```java
+MyBean类:
+public class MyBean {}
+MyBeanFactory类:
+public class MyBeanFactory {
+
+    public static MyBean getMyBean(){
+        return new MyBean();
+    }
+}
+```
+
+XML:
+
+```xml
+<!--
+ 	 类名调用静态方法
+-->
+<bean id="myBean" class="cn.itsource._05_createbean._02.MyBeanFactory" factory-method="getMyBean"></bean>
+```
+
+使用工厂模式,class获取它的bean,然后创建factory-method:它的方法,通过static静态方法调用,这样我们在返回Bean的时候就会直接返回这个方法返回的对象,通过一个工厂模式就可以实现!
+
+### 4.3 第三种
+
+**集成简单实例工厂**
+
+```java
+MyBean类:
+public class MyBean {}
+MyBeanFactory类:
+public class MyBeanFactory {
+    
+    public MyBean getMyBean(){
+        return new MyBean();
+    }
+}
+```
+
+XML:
+
+```xml
+<!--
+    先有对象
+    MyBeanFactory myBeanFactory = new MyBeanFactory()；
+-->
+<bean id="myBeanFactory" class="cn.itsource._05_createbean._03.MyBeanFactory" ></bean>
+<bean id="myBean" factory-bean="myBeanFactory" factory-method="getMyBean"></bean>
+```
+
+通过xml中factory-bean加载工厂bean进行调用然后在通过返回factory-method调用其方法作为返回对象,这是先有对象再有方法!
+
+### 4.4 第四种
+
+**使用FactoryBean**
+
+一般都不自己写FactoryBean实例,而是使用spring已经写好的,FactoryBean也是用来生产Bean的。它主要是用于在集成一些框架的时候。框架中的核心类我们并没有提供公共无参的构造器
+
+```java
+MyBean类:
+public class MyBean {}
+MyBeanFactoryBean类:
+/**
+ * 写一个 类，实现FactoryBean 接口
+ */
+public class MyBeanFactoryBean implements FactoryBean<MyBean>{
+    //最后返回的则是这一个对象
+    @Override
+    public MyBean getObject() throws Exception {
+        return new MyBean();
+    }
+	//返回类型
+    @Override
+    public Class<?> getObjectType() {
+        return MyBean.class;
+    }
+
+    /**
+     * 是否是单例
+     * @return
+     */
+    @Override
+    public boolean isSingleton() {
+        return true;
+    }
+}
+```
+
+XML:
+
+```xml
+ <!--
+       如果当前类实现了factoryBean接口，
+       spring会自动调用getObject()方法，
+       返回值就是我们要的bean
+     -->
+<bean id="myBean" class="cn.itsource._05_createbean._04.MyBeanFactoryBean"></bean>
+```
+
+工厂bean的方式,实现接口FactoryBean的方式,将我们要处理创建的类通过泛型的方式放进接口,然后我们在xml中用<bean>标签的形式进行创建它的实例-在创建对象之前要操作的事情就可以使用这个方式;spring底层就会自动去找类中是否存在并且调用getObject方法,返回值就是我们要的Bean
+
+> 理解:使用第四种方式主要用于一些类无法提供公共无参构造方法,并且或者需要在创建对象之前操作一些东西!
+
+#### 4.4.1 面试题
+
+说一下BeanFactory与FactoryBean的区别?
+
+```java
+BeanFactory接口是顶层父工厂,也是一个容器,主要用于获取Bean的实例
+FactoryBean接口,主要用于实例化不能通过默认无参构造方法获取的Bean,通过子类的getObject方法来返回实例,比如Spring整合mybatis中的SessionFactory,使用SQlSessionFactoryBean
+
+   注:如果一个类没有构造方法,但是可以用其他方式拿到它的对象,就可以用FactoryBean,主要多用于Spring的框架集成!
+```
+
+
+
+## 5.JDBC
 
   spring中提供了一个可以操作数据库的对象，对象封装了jdbc技术 ————JDBCTemplate JDBC模板对象，而JdbcDaoSupport则对JdbcTemplate进行了封装，所以要操作JdbcTemplate，或只需要继承JdbcDaoSupport即可
 
@@ -2582,7 +2930,7 @@ public void around(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
 
 <img src="https://gitee.com/miawei/pic-go-img/raw/master/imgs/20180807175618666" alt="img" style="zoom:50%;" />
 
-## 5. 总结
+## 6. 总结
 
 我们最后再来体会一下用Spring创建对象的过程:
 

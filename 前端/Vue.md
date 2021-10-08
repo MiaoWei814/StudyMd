@@ -1994,3 +1994,422 @@ npm run dev
 ...接下来就去饿了么UI官网搬砖使用:
 
 https://element.eleme.cn/#/zh-CN/
+
+### 2.快速使用:
+
+这里直接展示代码:
+
+1. 新建Login.vue:
+
+   ```vue
+   <template>
+   <div>
+     <el-form ref="loginForm" :model="form" :rules="rules" label-width="80px" class="login-box">
+       <h3 class="login-title">欢迎登录</h3>
+       <el-form-item label="账号" prop="username">
+         <el-input type="text" placeholder="请输入账号" v-model="form.username"/>
+       </el-form-item>
+       <el-form-item label="密码" prop="password">
+         <el-input type="password" placeholder="请输入密码" v-model="form.password"/>
+       </el-form-item>
+       <el-form-item>
+         <el-button type="primary" v-on:click="onsubmit('loginForm')">登录</el-button>
+       </el-form-item>
+     </el-form>
+   
+     <el-dialog title="温馨提示" :visible.sync="dialogvisible" width="30%" :before-close="handleClose">
+       <span>请输入账号和密码</span>
+       <span slot="footer" class="dialog-footer">
+         <el-button type="primary" @click="dialogVisible=false">确 定</el-button>
+       </span>
+     </el-dialog>
+   </div>
+   </template>
+   
+   <script>
+   export default {
+     name: "Login",
+     data(){
+       return{
+         form:{
+           username:"",
+           password:""
+         },
+   
+         //表单验证,需要在el-form-item元素中增加prop属性
+         rules:{
+           username:[
+             {required:true,message:"账号不可为空",trigger:'blur'}
+           ],
+           password:[
+             {required:true,message:"密码不可为空",trigger:'blur'}
+           ]
+         },
+   
+         //对话框显示和隐藏
+         dialogVisible:false
+       }
+     },
+   
+     methods:{
+       onsubmit(formName){
+         //为表单绑定验证功能
+         this.$refs[formName].validate((valid)=>{
+           if (valid){
+             //使用vue-router理由到指定页面,该方式称之为编程式导航
+             this.$router.push("/main");
+           }else{
+             this.dialogVisible=true;
+             return false;
+           }
+         });
+       }
+     }
+   }
+   </script>
+   
+   <style scoped>
+     .login-box{
+       border-top: 1px solid #DCDFE6;
+       width:350px;
+       margin: 180px auto;
+       padding: 35px 35px 15px 35px;
+       border-radius:5px;
+       -webkit-border-radius: 5px;
+       -moz-border-radius:5px;
+       box-shadow:0 0 25px #909399;
+     }
+   
+     .login-title{
+       text-align:center;
+       margin:0 auto 40px auto;
+       color:#303133;
+     }
+   </style>
+   ```
+
+2. 新建Main.vue
+
+   ```vue
+   <template>
+     <div id="app">
+       <router-link to="/login">登录</router-link>
+       <router-view></router-view>
+     </div>
+   </template>
+   
+   <script>
+   
+   export default {
+     name: 'App'
+   }
+   </script>
+   ```
+
+3. 新建路由管理index.js
+
+   ```js
+   import Vue from 'vue'
+   import Router from 'vue-router'
+   import Main from '../views/Main'
+   import Login from '../views/Login'
+   
+   
+   
+   Vue.use(Router);
+   
+   //默认导出一个接口
+   export default new Router({
+     //配置路由
+     routes:[
+       {
+         path : '/login',
+         component: Login
+       },{
+         path : '/main',
+         component: Main
+       }
+     ]
+   })
+   ```
+
+4. 修改main.js加载路由
+
+   ```js
+   
+   import Vue from 'vue'
+   import App from './App'
+   
+   import router from "./router";
+   //导入Element-UI所需的资源
+   import ElementUI from 'element-ui';
+   //导入一个编辑器就需要我们刚刚的那个SASS编辑器
+   import 'element-ui/lib/theme-chalk/index.css';
+   
+   Vue.config.productionTip = false
+   Vue.use(router);
+   Vue.use(ElementUI);
+   
+   new Vue({
+     el: '#app',
+     //放置路由
+     router,
+     render : h =>h(App) // ElementUI官方的
+   })
+   ```
+
+5. 修改首页显示App.vue:
+
+   ```vue
+   <template>
+     <div id="app">
+       <router-link to="/login">登录</router-link>
+       <router-view></router-view>
+     </div>
+   </template>
+   
+   <script>
+   
+   export default {
+     name: 'App'
+   }
+   </script>
+   ```
+
+6. 显示:
+
+   ![image-20211008195526008](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008195526008.png)
+
+文件夹:
+
+![image-20211008195612776](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008195612776.png)
+
+在将饿了么UI里的表单登录搬过来的时候,我们可以看出整个流程,登录和Main作为一个组件,这些组件作为一个视图进行展示,然后我们在index里面配置这些组件的路由,配置完毕我们将总配置路由加载到main.js里,然后我们首页加载的是APP.vue!
+
+### 3. 路由嵌套
+
+嵌套路由又称子路由,在实际应用中,通常由多层嵌套的组件组合而成,同样地,URL中各段动态路径也按某种结构对应嵌套的各层组件,例如:
+
+![image-20211008201909492](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211008201909492.png)
+
+比如说我这里访问`/user/foo/profile`路径那么它就会访问profile的内容,那么我再访问`/user/foo/posts`路径它就只会访问Posts的内容,只改变局部!这对于Vue很轻松,因为这对于Vue来说就是组件进行插槽拔插!
+
+使用的方式:
+
+```vue
+<script> //这个script这是让md代码高亮
+//默认导出一个接口
+export default new Router({
+  //配置路由
+  routes:[
+    {
+      path : '/login',
+      component: Login, //嵌套路由,在一个路由里面嵌套另一个路由
+      //外面是一个大路由,里面是小路由
+      children:[
+        {path : '/user/Profile',component:UserProfile},
+        {path : '/user/list',component:UserList},
+      ]
+    },{
+      path : '/main',
+      component: Main
+    }
+  ]
+})
+</script>
+```
+
+然后我们在使用前端的时候,这里贴一点使用代码:
+
+```vue
+<template>
+	...
+	<router-link to="/user/profile">个人信息</router-link>
+	<router-link to="/user/list">用户列表</router-link>
+	...
+	<el-main>
+    	 <!--主页的东西会展示在这里-->
+          <router-view />
+    </el-main>
+</template>
+```
+
+踩坑:如果遇到npm run dev 提示如下错误:
+
+`Module build failed: Error: Node Sass version 6.0.0 is incompatible with ^4.0.0.`
+
+根本原因是高版本的配置变了，当然直接改配置不够简便
+
+简单解决方案:
+
+1. 卸载:npm uninstall node-sass
+2. 安装：cnpm install node-sass@4.14.1
+3. 运行：npm run dev
+
+
+
+### 4.参数传递及重定向
+
+参数传递:前端传
+
+```vue
+// 这里如果只写路径,那么是可以省略name的,后面params就是加参数的
+//name是地址(也可以写组件名),params是传递参数,需要对象: v-bind
+<router-link :to="{name:'UserProfile',params:{id:1}}">个人信息</router-link>
+```
+
+那么在接收参数在这里:中间来进行接收
+
+```js
+...这是Vue路由里面的嵌套路由代码:
+children:[
+    	//这里通过一个/斜杠去绑定id,只要id相同,那么这里就可以接收
+    	//restful风格传参
+        {path : '/user/Profile/:id',component:UserProfile,name:'UserProfile'},
+        {path : '/user/list',component:UserList},
+      ]
+}
+```
+
+然后传递到组件中去拿出来:
+
+第一种获取参数的方式;
+
+```vue
+<template>
+<div>
+    <!--所有的元素,必须不能直接在根节点下-->
+    <h1>个人信息</h1>
+	{{$route.params.id}}
+</div>
+</template>
+```
+
+这是第二种获取参数的方式:
+
+```js
+1. 在这里增加一个props:true:
+{path : '/user/Profile/:id',component:UserProfile,name:'UserProfile',props:true}
+2.然后在组件中使用props进行参数传递获取
+
+<template>
+        <h1>个人信息</h1>
+        {{id}}
+</template>
+<script>
+        export default{
+			name:"UserProfile",
+            props:['id'],    
+		}
+</script>
+```
+
+
+
+> 要记住参数传递,首先是从前端页面传,然后我们需要在路由里接收,然后将其传递到组件页面中接收获取!
+
+**重定向:**
+
+在路由配置里面增加一个参数是`redirect`:
+
+```js
+...
+{path:'/goHome',redirect : '/user/list'}
+...
+```
+
+### 5.路由钩子与异步请求
+
+`beforeRouterEnter`:在进入路由前执行
+
+`beforeRouteLeave`:在离开路由前执行
+
+代码执行(在任何一个视图vue中,比如我这里使用的Profile.vue):
+
+```vue
+<script>
+export default {
+  name: "UserProfile",
+  //在路由进入前执行钩子函数,这里()=> 就是我们之前function一样,只不过这里是简写,这里三个参数都是固定的
+  //这三个参数就跟我们拦截器过滤器一样,to就好比是HttpRequest,from好比是HttpResponse,next往下一个走 chain
+  beforeRouteEnter:(to, from, next)=>{
+    alert("进入之前")
+    //这个不写就会卡住,得让他执行下一个,不管有没有,就好比Java中的放行的意思
+    next();
+  },
+  //在理由进入之后执行,在这个页面被进入之前就会执行上面那个代码,进入之后就会执行这个方法
+  beforeRouteLeave:(to, from, next)=>{
+    alert("进入之后")
+    next();
+  }
+}
+</script>
+```
+
+参数解释:
+
+- to:路由将要跳转的路径信息
+- form:路径跳转前的路径信息
+- next:路由的控制参数
+  - next():跳入下一个页面
+  - next("/path"):改变路由的跳转方法,使其跳转到另一个路由
+  - next(false):返回原来的页面
+  - next((vm)=>{}):仅在beforeRouterEnter中可用,vm是组件实例
+
+**异步请求:**
+
+在钩子函数中使用异步请求
+
+1. 安装Axios,使用命令`cnpm install axios -s`
+
+2. `main.js`引用Axios
+
+   ```js
+   import axios from 'axios'
+   
+   Vue.prototype.axios=axios;
+   ```
+
+3. 准备数据:只有我们的static目录下的文件是可以直接被访问到的,我们在浏览器上也是可以被访问到的,所以我们把静态文件放入该目录下。
+
+   ```json
+   //静态文件存放路径
+   static/mock/data.json
+   ```
+
+4. 修改我们之前的Profile.vue:
+
+   ```vue
+   <template>
+     <h1>个人信息</h1>
+   </template>
+   <script>
+   export default {
+     name: "UserProfile",
+     beforeRouteEnter:(to, from, next)=>{
+       alert("进入之前") //加载数据
+       next(vm => {
+         //获取它的实例来调用methods中的方法
+         vm.getData();//进入路由之前执行我们的getData()方法
+       });
+     },
+     beforeRouteLeave:(to, from, next)=>{
+       alert("进入之后")
+       next();
+     },
+     methods:{
+       getData:function (){
+         this.axios({
+           method:'get',
+           url:'http://localhost:8080/static/mock/data.json'
+             //执行完毕就调用这个方法传递返回response
+         }).then(function (response) {
+           console.log(response);
+         })
+       }
+     }
+   }
+   </script>
+   ```
+
+   

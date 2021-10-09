@@ -138,6 +138,7 @@
 19. **Ideolog**:识别和格式化 log 日志文件
 20. **Toml**:支持 toml 文件的高亮和提示等
 21. **.env files support**:支持 .env 文件的高亮和提示等
+22. **IDE Eval Reset**:重置JetBrains 所有产品都有 30 天试用,让你无限试用
 
 ****
 

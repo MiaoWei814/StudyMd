@@ -393,9 +393,8 @@ public class ThymeleafViewResolver extends AbstractCachingViewResolver implement
    </tr>
    ```
 
-   
-   
-   
+
+> 如果遇到404,springBoot就会去templates中的error文件夹中的404.html
 
 ## 2.MVC自动配置原理
 
@@ -1234,7 +1233,7 @@ public MessageSourceProperties messageSourceProperties() {
        password: root
        # userUnicode:保证不乱码  characterEncoding:设置字符集 serverTimezone:设置时区
        url: jdbc:mysql://localhost:3306/test?userUnicode=true&characterEncoding=utf-8&serverTimezone=UTC
-       driver-class-name: com.mysql.cj.jdbc.Driver
+       driver-class-name: com.mysql.cj.jdbc.Driver # 这里可以不用写,前三个参数默认会加载数据源,不写照样能跑!
    ```
 
    **注意**:这里连接数据库的时候要把时区加上,不然就会报以下异常:
@@ -1866,7 +1865,8 @@ Maven仓库地址:https://mvnrepository.com/artifact/org.mybatis.spring.boot/myb
    ```java
    @Repository //用@Compont也是可以,但是还是要分层思想
    @Mapper  //这个注解表示了这是一个mybatis的mapper类
-   //也可以在启动类上加上注解 @MapperScan("mapper所在的包路径"),就会去扫描指定包下的mapper都会被加载进去
+   //也可以在启动类上加上注解 @MapperScan("mapper所在的包路径"),就会去扫描指定包下的mapper都会被加载进去,
+   // @Mapper 表示指定mapper接口路径
    public interface UserMapper {
        List<User> queryList();
    }
@@ -1923,8 +1923,8 @@ Maven仓库地址:https://mvnrepository.com/artifact/org.mybatis.spring.boot/myb
    mybatis:
      # 别名
      type-aliases-package: com.example.pojo
-     # mapper地址  这里是以/分隔 表示这是文件夹分隔
-     mapper-locations: classpath:mybatis/mapper/*.xml
+     # mapper地址  这里是以/分隔 表示这是文件夹分隔,扫描mapper映射文件路径
+     mapper-locations: classpath:mybatis/mapper/*.xml     # 这里可以不写,因为约定大于配置,约定为:映射文件和映射接口的路径必须相同并且名称必须相同,就可以不用写映射文件路径
    ```
 
    注意这里就等同于我们之前SSM整合mybatis的是一致的:
@@ -1946,4 +1946,72 @@ Maven仓库地址:https://mvnrepository.com/artifact/org.mybatis.spring.boot/myb
    ![image-20211001144105590](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211001144105590.png)
 
    > 可以发现并不难,就是核心注解和对应的配置文件,就可以快速的整合mybatis了!
+
+### 6.2 pageHelper
+
+这是针对于mybatis的一个分页插件,可以用它完成分页
+
+1. 使用Maven(这是基于springBoot的):
+
+   ```xml-dtd
+   <dependency>
+       <groupId>com.github.pagehelper</groupId>
+       <artifactId>pagehelper-spring-boot-starter</artifactId>
+       <version>1.2.13</version>
+   </dependency>
+   ```
+
+2. 配置:
+
+   ```yaml
+   # 分页插件
+   pagehelper:
+     # 配置数据库类型,这里可以不同写,因为会自动检测当前的数据库连接,自动选择合适的分页方式,配置之后sql不用写了 	
+     helperDialect: mysql
+     # 自动纠错功能:pageNum<=0时会查询第一页,pageNum>pages会查询最后一页
+     reasonable: true
+     # 支持分页参数:支持通过Mapper接口参数来传递分页参数
+     supportMethodsArguments: true
+     params: count=countSql
+   ```
+
+3. 测试:
+
+   ```java
+   @RequestMapping("/likeName")
+   public List<Demo> likeName(String name){
+   		 PageHelper.startPage(1,1);
+   	     return demoService.likeName(name);
+   }
+   ```
+
+注:获取mybatis自增id
+
+```properties
+useGeneratedKeys = true, keyProperty = "id", keyColumn = "id"
+```
+
+我们如果在Mapper接口上使用注解进行开发:
+
+```java
+@Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id") 
+@Insert("insert into Demo(name,password) values(#{name},#{password})") 
+public long save(Demo name);
+```
+
+### 6.4 配置日志
+
+这里不用导依赖因为springBoot已经自带了日志:
+
+![image-20211011100239448](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211011100239448.png)
+
+```yaml
+# 配置日志
+logging:
+  level:
+    com:
+      example:
+        springbootproject: trace  # 指定com.example.springbootproject下的输出级别为trace
+    root: info  # 设置日志级别
+```
 

@@ -888,6 +888,58 @@ you can add your own @Configuration annotated with @EnableWebMvc.
 
    注意:我们在底层代码中看到许多带有`xxx Configuration`这个配置类,帮助我们进行扩展配置,只要看见了这个东西,我们就要注意了!
 
+### 2.4 拦截器
+
+这里只是做下笔记,不做阐述,方便的时候来看:
+
+自定义拦截器:
+
+```java
+public class LoginHandlerInterceptor implements HandlerInterceptor {
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        Object loginUser = request.getSession().getAttribute("loginUser");
+        //没有登录就拦截
+        if (loginUser == null) {
+            request.setAttribute("msg", "没有权限,请重新登录!");
+            request.getRequestDispatcher("/index.html").forward(request, response);
+            return false;
+        }
+        return true;
+    }
+}
+```
+
+配置到MVC配置里:
+
+```java
+@Configuration //等同于以前xml文件里的<bean>
+public class MyMvcConfig implements WebMvcConfigurer {
+    /**
+     * 添加拦截器
+     *
+     * @param registry 注册表
+     */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(new LoginHandlerInterceptor())
+                //拦截所有
+                .addPathPatterns("/**")
+                //不拦截登录页
+                .excludePathPatterns("/")
+                .excludePathPatterns("/index.html")
+                //不拦截登录发起的请求
+                .excludePathPatterns("/login/user")
+            	//放行静态资源
+                .excludePathPatterns("/css/**")
+                .excludePathPatterns("/js/**")
+                .excludePathPatterns("/img/**");
+    }
+}
+```
+
+注意:我们在MVC配置里我们添加自己的拦截器,我们不仅可以new一个拦截器,也可以通过Spring注入进行添加,Spring注入的话就首先在自定义拦截器上面添加`@Compoent`,然后在MVC配置里通过`@AutoWired`进行注入!
+
 ## 3.国际化
 
 **引入**:我们在浏览许多网站的时候都会遇到涉及中英文切换甚至更多语言的切换,这时我们就需要学习国际化了!

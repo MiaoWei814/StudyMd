@@ -362,6 +362,8 @@ Vue跟原生JS最大的区别就是:前者在不改变DOM对象的情况下去�
 
 ## 4.语法
 
+注:除了引入CDN,还可以用npm安装的模块进行使用,如:`<script src="node_modules/vue/dist/vue.js ></script>`
+
 ### 4.1 v-bind
 
 **引入**:我们已经成功创建了第一个 Vue 应用！看起来这跟渲染一个字符串模板非常类似，但是 Vue 在背后做了大量工作。现在数据和 DOM 已经被建立了关联，所有东西都是响应式的。我们在控制台操作对象属
@@ -385,13 +387,18 @@ Vue跟原生JS最大的区别就是:前者在不改变DOM对象的情况下去�
 </div>
 
 </body>
-<!--导入Vue.js-->
+<!--导入Vue.js,使用CDN方式引用-->
 <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/vue@2.5.21/dist/vue.min.js"></script>
 <script>
     let vue = new Vue({
-        el : "#app",
-        data : {
+        el : "#app",	// 挂载点,{{}}都得放在挂载点里面才能生效
+        data : {		//数据模型
             message:"页面加载于"+new Date().toLocaleString()
+        },
+        methods:{
+            if(){
+                return this.message;  //这里this获取当前Vue对象实例中的数据模型中的数据!在页面使用的话就是:{{if()}},注意这里要加括号,不然默认是认为是属性会去data里找!
+            }
         }
     });
 </script>
@@ -402,6 +409,8 @@ Vue跟原生JS最大的区别就是:前者在不改变DOM对象的情况下去�
 ![image-20211005172248356](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211005172248356.png)
 
 > 除了使用插值表达式{{}}进行数据渲染，也可以使用 v-bind指令，它的简写的形式就是一个冒号（:）
+
+注:这里el被称之为挂载点,所有Vue东西都得放在挂载点里面才能生效,然后这里挂载点使用的ID选择器,但是如果是Class选择器,那么在页面上从上往下第一个class选择器生效,第二个或者更多不生效!
 
 ### 4.2 v-if,v-else
 
@@ -668,6 +677,18 @@ Vue.js 是一个 MVVM 框架，即数据双向绑定，即当数据发生变化�
 演示:
 
 ![image-20211006093525512](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006093525512.png)
+
+### 4.6 表达式
+
+```js
+1.【基本操作】：{{5+5}}、{{"5"-"5"}}、{{show?"真":"假"}}
+2.【字符串操作】：{{''helloworld".length}}、{{''helloworld".substring(2,6).toUpperCase()}}
+3.【对象操作】：{{对象.属性}}、{{JSON.stringify(user)}}、{{user.getAge()}}
+4.【数组操作】：{{hobbys[0]}}、{{hobbys.length}}、{{hobbys.join("-----")}}
+{{expression}}:expression可以是变量，值，文本，运算符，表达式
+```
+
+
 
 ## 5.组件
 
@@ -1379,7 +1400,7 @@ NPM 的思路大概是这样的：
 
 > 这些可以被使用的代码被叫做「包」（package），这就是 NPM 名字的由来：Node Package(包) Manager(管理器)。
 
-### 10.1 需要的环境
+### 10.1 需要的环境-node.js
 
 - Node.js:http://nodejs.cn/download/
 - Git:https://git-scm.com/downloads
@@ -1399,6 +1420,9 @@ NPM 的思路大概是这样的：
 npm install cnpm -g
 # 或每次使用的时候添加如下语句就可以解决 npm速度慢的问题
 npm install --registry=https://registry.npm.taobao.org
+# 如果要升级可以使用下面的命令,如果遇到升级后查看版本依然还是之前的,那么就是默认安装到其他路径下,那么我们只需要在C盘`C:\Users\MiaoDaWei\AppData\Roaming\npm\node_modules\npm`
+# 拷贝到我们之前安装npm的路径下找到npm覆盖就可以了,->这是大概思路!不是很详细!
+npm install npm@laset -g  
 ```
 
 > 我们一般使用npm去安装东西,如果安装失败,我们就可以考虑cnpm,优先级依然是npm
@@ -1583,6 +1607,26 @@ vue list
        - *name: 'App'*：定义组件的名称
        - *components: { HelloWorld }*:定义子组件
      - 在hello,Vue中,关于 < style scoped> 的说明：CSS 样式仅在当前组件有效，声明了样式的作用域,是当前的界面私有的!
+   
+   **注**:这里`export default`表示默认导出,这是ES6的写法,会将整个JS导出,然后其他页面导入就可以使用这里面的方法等等,当然也可以进行单独值导出,不过这样局限性比较大,如:
+   
+   ```js
+   let name = "xxx"
+   export {name}
+   ```
+   
+   
+
+#### 10.2.1 其他命令:
+
+如果在IDEA中Terminal【终端】使用不了,那么就在设置中找到Tools->Terminal->修改为本地的`C:\WINDOWS\system32\cmd.exe`即可!
+
+1. 使用npm管理项目：`npm init -y【Terminal中】`
+2. 查看所有的库：`npm ls`
+3. 安装模块` npm install/i vue`
+4. 查看指定的模块：`npm list vue`
+5. 卸载模块：`npm uninstall vue`
+6. 更新模块：`npm update vue`
 
 ### 10.3 安装Webpack
 

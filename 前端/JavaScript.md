@@ -75,7 +75,7 @@ var var1=true;
 
 区别:
 
-1. var定义的变量可以修改，如果不初始化会输出undefined，不会报错
+1. var定义的变量可以修改，如果不初始化会输出undefined，不会报错,var是全局作用域!函数内使用var外面依然可以进行访问!
 
    ```javascript
    var a = 1;
@@ -89,7 +89,7 @@ var var1=true;
    console.log('函数调用后var定义a为函数内部修改值：' + a);//可以输出a=4
    ```
 
-2. let是块级作用域，函数内部使用let定义后，对函数外部无影响。
+2. let是块级作用域，函数内部使用let定义后，对函数外部无影响。在同级作用域下不能出现声明重复的let
 
    ```javascript
    let c = 3;
@@ -113,6 +113,145 @@ var var1=true;
    ```
 
    > 全局变量是作用于window的属性,原本是window.属性只不过这里window.进行省略了而已
+
+### 2.1 ESM6
+
+​	var let 区别:
+
+​		var:是全局作用域,可以被再次定义,在函数内部被定义那么函数外依然可以正常访问到!如果在同级作用域下出现一样的var 变量,那么后者覆盖前者!
+
+​		let:是块级作用域,是块级元素,函数内被声明,外部不能进行访问,可以在外部和函数内部同时定义相同的let,但是两者是完全不同的变量!
+
+```html
+  <script type="text/javascript">
+
+        /**
+         *  var: 可以被再次定义
+         *  let: 不可以被二次定义   let是块级元素，外部不可以使用。
+         */
+
+        // es5：var
+        var name = "lei";
+        var age = 20;
+        var age = 30;
+        console.debug(name,age);
+
+        // es6 方式
+        let sex = "女";
+        //let sex = "男";
+        console.debug(sex)
+        if(true){
+            var aa = "aa";
+            let bb = "bb";
+        }
+        console.debug(aa); //"aa"
+        console.debug(bb); //undefind
+    </script>
+```
+
+​	const:声明常量!一旦声明不可被第二次赋值!
+
+```html
+ <script type="text/javascript">
+        var name = "tom";
+        name = "jack";
+
+        let age = 20;
+        age = 30;
+        console.debug(name)
+        console.debug(age)
+
+        // const: 申明常量， 不可以被二次赋值。
+        const sex = "未知";
+        // sex = "ads";  不可以再次赋值
+
+    </script>
+```
+
+解构表达式:
+
+​	解构数组:将声明的数组的变量转为赋值一个数组变量,按照顺序意义对应即可!,然后我们就能拿到对应的数组元素!
+
+​	解构对象:将声明的对象的变量作为另一个赋值的结果,变量名按照对象中的key一一对应,然后我们就能拿到里面的对象元素!
+
+```html
+<script type="text/javascript">
+        let arr = ["王天霸","力很弱","阮经天"];
+        console.debug(arr[1]) // "力很弱"
+
+        // 解构数组
+        let [a,b,c,d] = arr;
+        console.debug(a,b,c,d)//"王天霸","力很弱","阮经天",underfind
+
+        // 解构对象
+        let obj = {"id":10,"name":"雷","sex":"男"};
+        // es6方式
+        let {id,name,sex} = obj;
+        console.debug(id,name,sex) //10,"雷","男"
+
+    </script>
+```
+
+箭头函数:
+
+```html
+<script type="text/javascript">
+        let obj = {
+            f1:function () { // es5方式
+                console.debug("f1.....")
+            },
+            f2(){ // es6简写方式
+                console.debug("f2...,,")
+            },
+            f3:()=>{ // 箭头函数
+                console.debug("f3......")
+            },
+            f4:name=>console.debug("f4.....")  // 如果只有一个参数可以省略括号，函数体中只有一句代码可以省略方法体。
+        };
+
+        let {f1,f2,f3,f4} = obj;
+        f1();f2();f3();f4(); //依次执行,但是要加上括号,因为这是函数方法是调用的那种
+
+    </script>
+```
+
+promise:Promise是异步编程的一种解决方案, 所谓Promise，简单说就是一个容器，里面保存着某个未来才会结束的事件（通常是一个异步操作）的结果,从语法上说，Promise 是一个对象，从它可以获取异步操作的消息。Promise 提供统一的 API，各种异步操作都可以用同样的方法进行处理。过Promise的构造函数来创建Promise对象，并在内部封装一个异步执行的结果。axios是一个发送http请求工具，是通过promise对Ajax进行封装。
+
+```html
+<script type="text/javascript">
+        const p = new Promise((resolve, reject) =>{
+            // 这里我们用定时任务模拟异步
+            setTimeout(() => {
+                const num = Math.random();
+                // 随机返回成功或失败
+                if (num < 0.5) {
+                    resolve("成功！num:" + num)
+                } else {
+                    reject("出错了！num:" + num)
+                }
+            }, 300)
+        })
+        // 调用promise
+        p.then(function (msg) {  //首先执行这个方法体,then中!如果失败了就执行catch中,他们分别对应上诉Promise中的参数,
+            console.log(msg); //异步成功的回调
+        }).catch(function (msg) {
+            console.log(msg); //异步失败的回调
+        })
+    </script>
+```
+
+模块化导入导出:我写在Vue.md中的Vue-Cli中的安装Webpack上一点点,这个模块化呢是ES6的写法,在VUE中也是比较重要的特性,但是由于有些浏览器不支持ES6,只支持ES5,所以这个时候我们会在VUE中使用webpack进行打包,将ES6自动转换为ES5的写法给浏览器看;
+
+理论:
+
+```
+模块化是一种思想,这种思想在前端有多种规范，常见的规范有commonJs(nodeJS),cmd/amd(可以在浏览器中使用),es6(可以在浏览器中使用).
+模块化就是把代码进行拆分，方便重复利用。类似java中的导包：要使用一个包，必须先导包。而JS中没有包的概念，换来的是模块。es6模块功能主要由两个命令构成：export和import。
+- export命令用于规定模块的对外接口，
+- import命令用于导入其他模块提供的功能。
+```
+
+
 
 ## 3.数据类型
 

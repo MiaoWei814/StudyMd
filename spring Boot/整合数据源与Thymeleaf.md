@@ -2067,3 +2067,278 @@ logging:
     root: info  # 设置日志级别
 ```
 
+## 7.整合Redis
+
+### 7.1 简述
+
+springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mongodb、Redis!
+
+**注**:SpringData是与SpringBoot齐名的项目!
+
+![image-20211014191812009](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211014191812009.png)
+
+> 整合测试:
+
+1. 新建项目,注意此处在新建的时候要勾选NoSQL中的Redis:
+
+   ![image-20211014192345312](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211014192345312.png)
+
+2. 然后在pom.xml发现是有这个依赖:
+
+   ```xml
+   <!--操作Redis-->
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-redis</artifactId>
+   </dependency>
+   ```
+
+   然后我们点击这个依赖查看:
+
+   ```xml
+   <dependency>
+         <groupId>org.springframework.data</groupId>
+         <artifactId>spring-data-redis</artifactId>
+         <version>2.5.5</version>
+         <scope>compile</scope>
+   </dependency>
+   ```
+
+   可以发现这个底层就是spring-data-redis!跟我们在官网看到的是一样的!就是上面截图的那个!
+
+   然后我们再往下查看:
+
+   ```xml
+   <dependency>
+         <groupId>io.lettuce</groupId>
+         <artifactId>lettuce-core</artifactId>
+         <version>6.1.5.RELEASE</version>
+         <scope>compile</scope>
+       </dependency>
+   </dependencies>
+   ```
+
+   可以发现这里怎么不是`jedis`呢?而是这个`lettuce`!
+
+   > 说明:在SpringBoot2.x之后,原来使用的jedis被替换为了lettuce!
+
+   为什么底层不再是使用jedis呢?
+
+   **jedis**:采用的是直连,就是直接去连接,如果是多个线程操作的话是不安全的!如果想要避免不安全的,那么使用jedis pool连接池!更像BIO模式!
+
+   **lettuce**:采用的是Netty(高性能的网络框架),异步请求非常快,实例可以在多个线程中进行共享,不存在线程不安全的情况!可以减少线程数量了,更像niO模式!
+
+   我们可以点开这个依赖进去看看是否存在netty:
+
+   ```xml
+    <dependency>
+         <groupId>io.netty</groupId>
+         <artifactId>netty-common</artifactId>
+         <version>4.1.68.Final</version>
+         <scope>compile</scope>
+   </dependency>
+   ```
+
+   可以发现确实是这样的!
+
+3. 配置文件:
+
+   我们之前学过在SpringBoot中所有的自动配置类都会导入绑定一个xxxproperties配置文件,而这个配置文件又跟我们的SpringBoot的配置文件进行绑定,所以在写配置文件之前,我们应该去找下源码看看:
+
+   1. 我们通过`spring-boot-autoconfigure-2.5.5.jar/META-INF/spring.factories`中找到`RedisAutoConfiguration`自动配置类:
+
+      ```java
+      @EnableConfigurationProperties(RedisProperties.class)
+      public class RedisAutoConfiguration {...}
+      ```
+
+   2. 我们点击这个RedisProperties里看看:
+
+      ```java
+      @ConfigurationProperties(prefix = "spring.redis")
+      public class RedisProperties {
+      	private int database = 0;
+      	private String url;
+      	private String host = "localhost";
+      	private String username;
+      	private String password;
+      	private int port = 6379;
+      	private boolean ssl;
+      	private Duration timeout;
+      	private Duration connectTimeout;
+      	private String clientName;
+      	private ClientType clientType;
+      	private Sentinel sentinel;
+      	private Cluster cluster;
+      	private final Jedis jedis = new Jedis();
+      	private final Lettuce lettuce = new Lettuce();
+      ```
+
+      > 可以看出这里面就是我们能够配置redis的!
+
+   3. 回过头来我们看`RedisAutoConfiguration`中:
+
+      ```java
+      @Bean
+      @ConditionalOnMissingBean(name = "redisTemplate") //如果这个Bean不存在那么这个类就会生效,所以我们可以自定义一个Template来替换这个默认的!
+      @ConditionalOnSingleCandidate(RedisConnectionFactory.class)
+      //在SpringBoot中只要看到xxxTemplate就表示已经封装好了,我们可以直接拿来使用!
+      public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+          //默认的RedisTemplate没有过多的设置,是因为redis对象都是需要序列化!
+          //两个泛型都是Object类型,我们使用需要强制转换<String,String>
+          RedisTemplate<Object, Object> template = new RedisTemplate<>();
+          template.setConnectionFactory(redisConnectionFactory);
+          return template;
+      }
+      
+      @Bean
+      @ConditionalOnMissingBean
+      @ConditionalOnSingleCandidate(RedisConnectionFactory.class)
+      //可以发现这也是一个template,但是这是String类型的,是因为在使用中String类型比较常用,所以单独提出了一个Bean
+      public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory redisConnectionFactory) { 
+          StringRedisTemplate template = new StringRedisTemplate();
+          template.setConnectionFactory(redisConnectionFactory);
+          return template;
+      }
+      ```
+
+      
+
+### 7.2 快速使用
+
+1. 导入依赖:
+
+   ```xml
+    <!--操作Redis-->
+           <dependency>
+               <groupId>org.springframework.boot</groupId>
+               <artifactId>spring-boot-starter-data-redis</artifactId>
+           </dependency>
+   ```
+
+2. 配置文件:
+
+   ```yaml
+   # 配置redis
+   spring:
+     redis:
+       host: 127.0.0.1
+       port: 6379
+       database: 0
+   # 如果要配置redis连接池,优先考虑lettuce连接池,因为通过源码发现jedis连接池许多类都是不生效的,而lettuce都是生效的,而官方也是推荐使用lettuce的!
+   ```
+
+3. 测试!
+
+   ```java
+   package cn.miao;
+   
+   import org.junit.jupiter.api.Test;
+   import org.junit.runner.RunWith;
+   import org.springframework.beans.factory.annotation.Autowired;
+   import org.springframework.boot.test.context.SpringBootTest;
+   import org.springframework.data.redis.connection.RedisConnection;
+   import org.springframework.data.redis.core.RedisTemplate;
+   import org.springframework.test.context.junit4.SpringRunner;
+   
+   import javax.annotation.Resource;
+   
+   @SpringBootTest
+   @RunWith(SpringRunner.class)
+   class SpringBootRedisDemoApplicationTests {
+       @Autowired
+       private RedisTemplate redisTemplate;
+   
+       @Test
+       void contextLoads() {
+           //opsForValue 操作字符串 类似String
+           //opsForList 操作List 类似List
+           //而在opsForValue/opsForList之后的链式方法就跟之前使用jedis没有任何变化了
+           //opsForSet
+           //opsForHash
+           //opsForGeo
+           //opsForZset
+           // ....
+           //opsForxxx就对应我们之前使用的数据类型!
+   //        redisTemplate.opsForValue().set("")
+   
+   
+           //一些常用的操作命令被redisTemplate提出来了!所以我们可以直接使用redisTemplate进行使用!
+           //除了基本的操作,我们常用的方法都可以直接通过使用redisTemplate操作,比如事务和基本的CRUD
+   //        redisTemplate.delete("");
+   //        redisTemplate.expire("",1)
+   
+           //获取redis连接的对象,就在这里面,通过连接进行操作
+   //        RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
+   //        connection.flushDb();
+   //        connection.flushAll();
+   
+           redisTemplate.opsForValue().set("myKey", "缪威");
+           System.out.println(redisTemplate.opsForValue().get("myKey"));
+       }
+   }
+   ```
+
+   输出:
+
+   ![image-20211014211627677](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211014211627677.png)
+
+   在cmd中查看:
+
+   ```bash
+   127.0.0.1:6379> keys *
+   1) "\xac\xed\x00\x05t\x00\x05myKey"  # 这里中文乱码了!
+   ```
+
+   
+
+### 7.3 源码解析
+
+在上述过程中我发现本身我们是不能使用中文的,但是确实打印输出的却是中文的!这是因为序列化的原因!
+
+来我们继续分析一下:
+
+1. 我们回到`RedisAutoConfiguration`自动配置类中:
+
+   ```java
+   //这里默认的是Lettuce的自动配置,里面比如就有shutdown关机资源等等...
+   @Import({ LettuceConnectionConfiguration.class, JedisConnectionConfiguration.class })
+   public class RedisAutoConfiguration {
+       @Bean
+   	@ConditionalOnMissingBean(name = "redisTemplate")
+   	@ConditionalOnSingleCandidate(RedisConnectionFactory.class)
+   	public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+           //我们点击这个RedisTemplate里查看:
+   		RedisTemplate<Object, Object> template = new RedisTemplate<>();
+   		template.setConnectionFactory(redisConnectionFactory);
+   		return template;
+   	}
+   }
+   ```
+
+2. 我们点击这个`RedisTemplate`这个默认对象看一下:
+
+   ```java
+   public class RedisTemplate<K, V> extends RedisAccessor implements RedisOperations<K, V>, BeanClassLoaderAware {
+       ...
+       //这些都是序列化配置!
+       @SuppressWarnings("rawtypes") private @Nullable RedisSerializer keySerializer = null;   
+   	@SuppressWarnings("rawtypes") private @Nullable RedisSerializer valueSerializer = null;
+   	@SuppressWarnings("rawtypes") private @Nullable RedisSerializer hashKeySerializer = null;
+   	@SuppressWarnings("rawtypes") private @Nullable RedisSerializer hashValueSerializer = null;
+       ...
+   }
+   ```
+
+   然后我们将`keySerializer`搜一下往下找一下:
+
+   ```java
+   if (defaultSerializer == null) {
+       //可以发现这是默认的序列化方式->是JDK序列!这样做就会让我们的字符串转义!我们可能会使用Json来序列化!
+   	defaultSerializer = new JdkSerializationRedisSerializer(
+   				classLoader != null ? classLoader : this.getClass().getClassLoader());
+   }
+   ```
+
+3. 因为我们可能会使用JSON来序列化所以我们自定义一个RedisTemplate,当然以后的工作不会使用默认的RedisTemplate都是自定义进阶!
+

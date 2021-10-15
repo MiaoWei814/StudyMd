@@ -263,10 +263,12 @@ MVVM 框架已经把最脏最累的一块做好了，我们开发者只需要处
 
 > 在 MVVM 架构中，是不允许 数据 和 视图 直接通信的，只能通过 ViewModel 来通信，而 ViewModel就是定义了一个 Observer 观察者
 
-- ViewModel 能够观察到数据的变化，并对视图对应的内容进行更新
+- ViewModel 能够绑定到数据的变化，并对视图对应的内容进行更新
 - ViewModel 能够监听到视图的变化，并能够通知数据发生改变
 
 至此，我们就明白了，Vue.js 就是一个 MVVM 的实现者，他的核心就是实现了 DOM 监听 与 数据绑定
+
+![image-20211015102648080](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211015102648080.png)
 
 ### 3.2 好处
 
@@ -402,6 +404,14 @@ Vue跟原生JS最大的区别就是:前者在不改变DOM对象的情况下去�
         }
     });
 </script>
+// 除了v-bind和:的方式以外还有一种方式:
+<input v-bind="props"/> //类似于直接替换,这里props中的key得为存在的标签才能被识别!
+...
+props:{
+	type:"text",
+	name:"username",
+	value:"zs"
+}
 ```
 
 效果:
@@ -461,8 +471,11 @@ Vue跟原生JS最大的区别就是:前者在不改变DOM对象的情况下去�
 ```vue
 <body>
 <div id="app">
+    <!-- 这里循环参数有多种方式-->
+    <!-- <v-for="(item,key,index) in items"  对象: 这里是按照顺序对应的,第一个参数是元素参数值,第二个是key的名字,第三个是下标-->
+    <!-- <v-for="(item,index) in items"  数组: 这里是按照顺序对应的,第一个参数是元素参数值,第二个是下标-->
    <li v-for="item in items">
-       {{item.message}}
+       {{item.message}}    
    </li>
 </div>
 
@@ -678,7 +691,38 @@ Vue.js 是一个 MVVM 框架，即数据双向绑定，即当数据发生变化�
 
 ![image-20211006093525512](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006093525512.png)
 
-### 4.6 表达式
+### 4.6 v-show
+
+就是控制显隐的!返回boolean值来判断是否显示!
+
+上代码:
+
+```html
+<div id="app">
+    <img v-show="show" width="500px" src="img/6.png"/>
+    <br/>
+    <!-- <button v-on:click="isShow" >按钮</button>-->
+    <button @dblclick="isShow" >按钮</button>
+</div>
+js:
+<script type="text/javascript">
+        new Vue({
+            el: "#app",
+            data: {
+                show: true,
+            },
+            methods: {
+                isShow(){
+                    this.show = !this.show;
+                }
+            }
+        })
+</script>
+```
+
+
+
+### 4.7 表达式
 
 ```js
 1.【基本操作】：{{5+5}}、{{"5"-"5"}}、{{show?"真":"假"}}
@@ -702,7 +746,7 @@ Vue.js 是一个 MVVM 框架，即数据双向绑定，即当数据发生变化�
 
 比如:你可能会有页头、侧边栏、内容区等组件,每个组件又包含了其他的像导航链接、博文之类的组件，为了不出现大量重复的代码，那么我们应该将其抽取出来放在公共区！
 
-### 5.1 vue.component
+### 5.1 Vue.component
 
 接下来将使用这种方式开发组件,但实际开发中不会这样子做,只是临时写一下理解一下:
 
@@ -735,14 +779,102 @@ Vue.js 是一个 MVVM 框架，即数据双向绑定，即当数据发生变化�
 </script>
 ```
 
-就是我们定义一个组件,然后这个组件我们就可以用使用标签的形式进行使用,但是这个组件我们必须在Vue对象绑定的元素内,因为这毕竟是Vue对象的而不是其他的,放在外面就没用了!
+就是我们定义一个组件,然后这个组件我们就可以用使用标签的形式进行使用,但是这个组件我们必须在Vue对象绑定的元素内,也就是Vue的挂载点,因为这毕竟是Vue对象的而不是其他的,放在外面就没用了!
 
 **注意**:
 
-1. 定义组件必须放在Vue绑定的元素内使用!
-2. 我们在定义组件名字的时候,首字母可以大小写,后面的字母也可以大小写,但是在DOM中使用的时候大写字母前面需要**用"-"隔开**,并且使用的时候不区分大小写,只需要注意大写字母前加**-**即可,
+1. 定义组件必须放在Vue绑定的元素内使用,这个Vue实例可以是任何Vue实例,但必须是是Vue对象的挂载点里面!
+2. 我们在定义组件名字的时候,首字母可以大小写,后面的字母也可以大小写,但是在DOM中使用的时候大写字母前面需要**用"-"隔开**,并且使用的时候不区分大小写,只需要注意大写字母前加**-**即可;
+3. 模板里面只能有一个根标签!比如这就是错误的:`<span></span><span></span>`,正确示范:`<div><span></span><span></span></div>`
 
 > 我们使用组件的标签在DOM中,就可以自动替换了组件中的template中的内容!
+
+上面那个是**全局**组件,也就是任意的Vue挂载点都可以进行使用!
+
+下面介绍**局部**组件,也就是说在某个Vue实例中定义组件!只能在当前Vue实例中生效!
+
+```js
+new Vue({
+	el:""#app",
+	compoents:{
+		'MiaoDaWei':{ template: '<li>Hello</li>'}
+	}
+})
+```
+
+> 定义模板的三种方式:
+
+因为在模板里写HTML一旦多了就会影响视觉!那么我们可以把模板抽出来然后进行调用就可以了!
+
+方式:
+
+1. 在template里直接写
+
+2. 在html中定义模板(建议使用)
+
+   ```html
+   html:
+   <template id="item">
+   	<span>xxxxxxxxx</span>
+   </template>
+   ```
+
+3. 在script中定义模板
+
+   跟HTML一样只是换了个位置而已,由HTML换到了JS文件里!
+
+   ```javascript
+   <script type="text/template" id="myScript">
+       <span>xxxx</span>
+   </script>
+   ```
+
+> 组件动态取值:
+
+概述:如果组件需要动态取值，准备的值必须放在组件内部
+
+全局组件:
+
+```javascript
+//定义模板
+<template id="myTemplate">
+	<h1>欢迎【 {{username}} 】登录系统</h1>
+</template>
+//定义全局组件并调用模板:
+Vue.component("myComponent",{
+	template:"#myTemplate",
+	data(){
+		return {
+			username:"方世玉"
+		}
+	}
+});
+```
+
+局部组件:
+
+```javascript
+//定义模板
+<template id="myTemplate">
+	<h1>欢迎【 {{username}} 】登录系统</h1>
+</template>
+//定义局部组件并调用模板
+new Vue({
+	el:"#app",
+	components:{
+		innercomponent:{
+			template:"#myTemplate",
+			data(){
+				return:{
+					username:"方世玉"
+				}
+			}
+		}
+	}
+});
+```
+
+
 
 ### 5.2 props
 
@@ -826,6 +958,8 @@ Vue实例有一个完整的生命周期,也就是从开始创建、初始化数�
 ![image-20211006141335242](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006141335242.png)
 
 解读:我们在`new Vue()`在实例化的时候并没有真正的去渲染,然后在创建实例化的时候就会立马去创建`钩子函数`,然后在初始化注入后跟在`el`判断是否存在之前还有一个事情就是创建`钩子`,而这些函数人家已经提供好了,我们只需要放在那里去使用,比如在初始化注入之前有个钩子函数是`beforeCreate`,我们就能直接使用;然后当el创建好了之后就要往里面渲染template数据,这个时候就要判断是否有template选项,如果有,那么就把数据插进去,然后编译成模板,然后将编译好的HTML替换掉el属性所指向的DOM,挂载之后,就是实时监听!
+
+> 我们使用的最多的就是mounted函数,因为这个函数是将页面HTML挂载完毕,还没装载数据,所以开始实例化Vue实例.而这个钩子函数就是处于两者之间!就是页面渲染完毕就会调用钩子函数!
 
 ### 6.2 快速使用
 
@@ -1015,6 +1149,35 @@ data.json:
 ​	调用方法时,每次都需要进行计算,既然有计算过程则必定产生系统开销,那如果这个结果是不经常变化的呢?此时就可以考虑将这个**结果缓存**起来,采用计算属性可以很方便的做到这一点
 
 > 计算属性的主要特性就是为了将不经常变化的计算结果进行缓存,以节约我们的系统开销!
+
+### 7.1 Watch
+
+watch可以让我们监控一个值的变化。从而做出相应的反应。
+
+示例:
+
+```javascript
+<div id="app">
+      <input type="text" v-model="message">
+  </div>
+  <script src="./node_modules/vue/dist/vue.js"></script>
+  <script type="text/javascript">
+      var vm = new Vue({
+          el:"#app",
+          data:{
+              message:""
+          },
+          watch:{
+              //监视当前Vue实例中的属性值,参数是新值和旧值
+              message(newVal, oldVal){
+                  console.log(newVal, oldVal);
+              }
+          }
+      })
+</script>
+```
+
+![image-20211015182359879](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211015182359879.png)
 
 ## 8.内容分发-插槽
 
@@ -1363,6 +1526,8 @@ data.json:
 
 vue-cli 官方提供的一个脚手架,用于快速生成一个vue的项目模板!
 
+前期的搭建环境,不用再去自己做了直接全部帮你搞定!
+
 > 脚手架:预先定义好的目录结构及基础代码,就好比咱们在创建Maven项目时可以选择创建一个骨架项目,这个骨架项目就是脚手架,它使我们的开发更加的快速!
 
 ![image-20211006221809378](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006221809378.png)
@@ -1485,6 +1650,10 @@ vue list
 3. 执行完毕看文件夹:
 
    ![image-20211007092745179](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007092745179.png)
+
+   这是介绍图:
+
+   ![image-20211015184820406](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211015184820406.png)
 
 4. 初始化运行
 
@@ -1630,7 +1799,15 @@ vue list
 
 ### 10.3 安装Webpack
 
-​	WebPack是一款模块加载器兼打包工具,它能把各种资源,如JS、JSX、ES6、SASS、LESS、图片等都作为模块来处理和使用
+​	WebPack是一款模块加载器兼打包工具,它能把各种资源,如JS、JSX、ES6、SASS、LESS、图片等都作为模块来处理和使用.
+
+为什么要进行打包:
+
+1. 众多的小文件打包为几个文件，一次性加载
+2. 将es6的语法进行转换编译，以兼容老版本的浏览器
+3. 对原来的文件进行混淆，保证安全性-会进行压缩!
+
+> Webpack 是一个前端资源加载/打包工具!
 
 安装:
 
@@ -1747,15 +1924,13 @@ module.exports = {
 
 webpack就是一个打包工具,选择从哪个地方的入口自动帮你把这个入口里面所需要的所有东西通过它的方式打包起来运行!
 
-
-
 我们可以用**webpack --watch**用于监听变化,实现热部署,只要发生了变化就立马打包好!就不断监听你的操作, 
-
-
 
 ## 11.vue-router路由
 
 **描述**:Vue Router是Vue.js官方的路由管理器。它和Vue.js的核心深度集成,让构建单页面应用变得易如反掌!
+
+**官网**:https://router.vuejs.org/zh
 
 **包含功能**:
 
@@ -1769,6 +1944,8 @@ webpack就是一个打包工具,选择从哪个地方的入口自动帮你把这
 - 自定义的滚动条行为
 
 > 理解:因为Vue是纯粹的视图层框架,是SoC原则(关注度分离原则),只关注视图层,其他都做不了,所以把跳转页面路由交给了vue-router组件
+>
+> 路由:负责将进入的浏览器请求映射到特定的组件代码中!
 
 ### 1.安装
 
@@ -1795,6 +1972,8 @@ import VueRouter from 'vue-router'
 // 显示的使用
 Vue.use(VueRouter);
 ```
+
+注意:因为Vue-router是Vue的插件,所以导入的顺序不能乱,必须是先导入Vue再导入vue-router
 
 ### 2.使用
 
@@ -1889,7 +2068,7 @@ Vue.use(VueRouter);
    new Vue({
      el: '#app',
      //配置路由,我们只需要将router给它就好了,他会自动的去做,类似于我们springBoot启动类上的注解@SpringBootApplication
-     router,
+     router, //这里如果是路由的名字是router那么可以简写为一个,那么如果路由的名字不是router那么就是router:路由名字
      components: { App },
      template: '<App/>'
    })
@@ -1939,6 +2118,54 @@ Vue.use(VueRouter);
    ![image-20211007160654361](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211007160654361.png)
 
 总结:总的来说就是我们有很多组件,然后我们通过一个js进行管理跳转这个组件,然后这个js就被需要的地方引入即可,他会自动去找这个路由!
+
+这里再列出把模块化取消全部放在一个页面使用路由:
+
+```javascript
+<div id="app">
+    	//3.使用路由
+        <router-link to="/index">首页</router-link>
+        <router-link to="/emp">员工管理</router-link>
+        <router-link to="/dept">部门管理</router-link>
+
+        //路由出口
+        <router-view></router-view>
+</div>
+
+    <script type="text/javascript">
+
+        /**
+         * 1. 写组件
+         * 2. 写路由
+         * 3. 使用路由
+         */
+        // 1. 写组件
+        let INDEX = Vue.component("aaa",{template: "<h1>首页</h1>"})
+        let EMP = Vue.component("bbb",{template: "<h1>员工管理</h1>"})
+        let DEPT = Vue.component("ccc",{template: "<h1>部门管理</h1>"})
+
+        // 2. 写路由
+        let router= new VueRouter({
+           routes:[
+                {path: "/index",component:INDEX },
+                {path: "/emp",component:EMP },
+                {path: "/dept",component:DEPT },
+            ]
+        })
+
+
+        new Vue({
+            el: "#app",
+            data: {
+            },
+            router  // 省略写法  router: router
+        })
+    </script>
+```
+
+> 执行流程:然后在HTML中通过 <router-link>进行跳转路由,然后去找当前实例中去找对应的路由管理器,然后映射找到对应的组件,然后根据组件中的template返回到HTML中的<router-view>中展示!
+>
+> 理解:就是在实例中加入路由,而这个路由就是vue-router,而vue-router加入组件路径!
 
 1. ## 解决路由中带#号问题:
 

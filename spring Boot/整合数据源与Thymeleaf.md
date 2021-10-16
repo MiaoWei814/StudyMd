@@ -2226,6 +2226,15 @@ springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mon
        port: 6379
        database: 0
    # 如果要配置redis连接池,优先考虑lettuce连接池,因为通过源码发现jedis连接池许多类都是不生效的,而lettuce都是生效的,而官方也是推荐使用lettuce的!
+   	password: 
+       jedis:
+         pool:
+             max-active: 8
+             max-wait: -1ms
+             max-idle: 500
+             min-idle: 0
+       lettuce:
+             shutdown-timeout: 0ms
    ```
 
 3. 测试!
@@ -2290,7 +2299,7 @@ springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mon
    1) "\xac\xed\x00\x05t\x00\x05myKey"  # 这里中文乱码了!
    ```
 
-   
+   > 也就是说用自带的redisTemplate中默认的JDK序列化方式,就会造成无法使用对象或者中文去保存数据!
 
 ### 7.3 序列化源码解析
 

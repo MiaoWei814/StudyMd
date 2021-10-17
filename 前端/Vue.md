@@ -2266,6 +2266,12 @@ npm run dev
 
 https://element.eleme.cn/#/zh-CN/
 
+#### 1.1 启动执行流程
+
+思考一下为什么默认页面就是那个,执行流程是什么呢?
+
+![image-20211017093533295](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211017093533295.png)
+
 ### 2.快速使用:
 
 这里直接展示代码:

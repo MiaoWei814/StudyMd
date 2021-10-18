@@ -965,6 +965,54 @@ Vue实例有一个完整的生命周期,也就是从开始创建、初始化数�
 
 了解了生命周期,那么我们就直接使用`mounted`函数进行发起ajax请求:
 
+1. 引入依赖模块:
+
+   ```bash
+   npm install axios --save
+   ```
+
+   或者使用CDN:
+
+   ```javascript
+   <!--导入axios-->
+   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+   ```
+
+2. 局部使用:
+
+   ```javascript
+   ...
+   import axios from "axios" // 局部引入axios
+   ...
+   axios.post("/user/list",{"currentPage":1})
+             .then(result=>{ // 发送成功的回调函数   result：接收返回值的
+               this.tableData = result.data.rows;
+             }).catch(result=>{ // 发送失败
+               alert("系统错误，请稍后重试。。。");
+    })
+   ```
+
+3. 全局使用:
+
+   ```javascript
+   main.js:
+   只需要在main.js中引入即可:
+   import axios from 'axios'
+   //配置axios的全局基本路径 t
+   axios.defaults.baseURL='http://localhost:80'  //这里URL是我们用于使用mock数据的fastMock;或者说开发的时候统一配置请求后端的路径,测试阶段配置请求fastmock路径!
+   //全局属性配置，在任意组件内可以使用this.$http获取axios对象
+   Vue.prototype.$http = axios
+   
+   然后具体的文件中使用:
+   this.$http.post("/user/list",{参数:1})
+   ```
+
+   
+
+
+
+
+
 实例代码:
 
 ```vue
@@ -1077,6 +1125,146 @@ data.json:
 页面效果:
 
 ![image-20211006152454487](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211006152454487.png)
+
+### 6.3 接口数据模拟-Mockjs
+
+概念:Mock.js （官网http://mockjs.com/）是一款模拟数据生成器，旨在帮助前端师独立于后端进行开发，帮助编写单元测试。
+
+1. 安装依赖模块
+
+   ```bash
+   npm install mockjs
+   ```
+
+   这是使用的链接:https://www.jianshu.com/p/7674c285a0d8
+
+2. 新建js文件:
+
+   ```javascript
+   mport Mock from 'mockjs' // 引入mock
+   var dataList = []		//建立空的数组
+   for (var i = 0; i < 15; i++) {
+     dataList.push(Mock.mock({		//循环添加mock数据
+       'id': '@increment',
+       'name': '@cname',
+       'phone': /^1[0-9]{10}$/,
+       'email': '@email',
+       'address': '@county(true)',
+       'createTime': '@date("yyyy-MM-dd")'
+     }))
+   }
+   
+   //index是开始的位置 size 每页显示的条数 list 全部数据
+   function pagination(index, size, list) {
+     // index = 2 size 10   list.slice(10,20) ,这个slice是分割的意思
+     return list.slice((index-1)*size, index*size)
+   }
+   // 获取用户列表,opts是接收参数的意思  
+   Mock.mock(new RegExp('/user/list'), 'post', (opts) => {
+     var list =dataList;
+     console.log(opts.body)
+     var index = JSON.parse(opts.body).currentPage; //这里是获取接收参数中的指定属性
+     var size = 10;
+     var total = list.length
+     list = pagination(index, size, list)
+     return {								//返回给请求
+       'total': total,
+       'rows': list
+     }
+   })
+   ```
+
+3. axios发送,我们只需要引入刚刚mock的js,就可以了
+
+   ```vue
+   <template>
+     <!--
+       data: 绑定的数据
+       style：样式宽度
+       label：表头
+       prop: 对应的是对象的属性
+      -->
+     <el-table
+       :data="tableData"
+       style="width: 100%"
+       :row-class-name="tableRowClassName">
+       <el-table-column
+         prop="createTime"
+         label="日期"
+         width="180">
+       </el-table-column>
+       <el-table-column
+         prop="name"
+         label="姓名"
+         width="180">
+       </el-table-column>
+       <el-table-column
+         prop="address"
+         label="地址">
+       </el-table-column>
+     </el-table>
+   
+   </template>
+   
+   <script>
+     import userMock from "../../userMock.js" // 引入userMock.js   提供接口
+     import axios from "axios" // 局部引入axios
+     export default {
+       methods: {
+         tableRowClassName({row, rowIndex}) {
+           if (rowIndex === 1) {
+             return 'warning-row';
+           } else if (rowIndex === 3) {
+             return 'success-row';
+           }
+           return '';
+         }
+       },
+       data() {
+         return {
+           tableData: [],
+         }
+       },
+       mounted(){
+           // 发送请求 axios
+         /**
+          * 参数一：请求路径
+          * 参数二：请求携带的参数
+          */
+           axios.post("/user/list",{"currentPage":1})
+             .then(result=>{ // 发送成功的回调函数   result：接收返回值的
+               this.tableData = result.data.rows;
+             }).catch(result=>{ // 发送失败
+               alert("系统错误，请稍后重试。。。");
+           })
+       }
+     }
+   </script>
+   
+   
+   <style scoped>
+     .el-table .warning-row {
+       background: oldlace;
+     }
+   
+     .el-table .success-row {
+       background: #f0f9eb;
+     }
+   </style>
+   
+   ```
+
+> 使用mock.js进行模拟,我们只需要将模拟好的js导入即可,然后在axios发送数据的时候就会被拦截到我们mock的那里!
+
+### 6.4 FastMock使用
+
+登录注册
+
+https://www.fastmock.site/
+
+新建项目,然后将地址粘贴到axios中全局替换!
+
+![image-20211018175233527](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211018175233527.png)
 
 ## 7.计算属性
 
@@ -2471,7 +2659,8 @@ elementUI使用:
 
 2. 全局引入:在main.js中引入,在vue下面
 
-   ```
+   ```bash
+   import Vue from 'vue';
    import ElementUI from 'element-ui';  //引入核心js组件
    import 'element-ui/lib/theme-chalk/index.css'; //引入依赖的样式
    Vue.use(ElementUI)
@@ -2705,6 +2894,4 @@ export default {
    </script>
    ```
 
-
-### 6.ElementUI实际演示使用
 

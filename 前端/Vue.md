@@ -2463,6 +2463,22 @@ https://element.eleme.cn/#/zh-CN/
 
 在将饿了么UI里的表单登录搬过来的时候,我们可以看出整个流程,登录和Main作为一个组件,这些组件作为一个视图进行展示,然后我们在index里面配置这些组件的路由,配置完毕我们将总配置路由加载到main.js里,然后我们首页加载的是APP.vue!
 
+#### 2.1 搭建注意
+
+elementUI使用:
+
+1. 安装 npm i element-ui -S
+
+2. 全局引入:在main.js中引入,在vue下面
+
+   ```
+   import ElementUI from 'element-ui';  //引入核心js组件
+   import 'element-ui/lib/theme-chalk/index.css'; //引入依赖的样式
+   Vue.use(ElementUI)
+   ```
+
+3. 使用即可!
+
 ### 3. 路由嵌套
 
 嵌套路由又称子路由,在实际应用中,通常由多层嵌套的组件组合而成,同样地,URL中各段动态路径也按某种结构对应嵌套的各层组件,例如:
@@ -2689,4 +2705,6 @@ export default {
    </script>
    ```
 
-   
+
+### 6.ElementUI实际演示使用
+

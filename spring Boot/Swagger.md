@@ -31,9 +31,10 @@
 
 1. 号称世界上最流行的Api框架;
 2. RestFul Api 文档在线自动生成工具,==>**API文档与Api定义同步更新**
-
 3. 直接运行,可以在线测试APi接口;
 4. 支持多种语言:(Java,Php...)
+
+> Restful是一种面向资源的架构风格,可以简单理解为:使用URL定位资源,用HTTP动词(GET、post、delete、put、patch（批量操作）)描述操作！
 
 这是官网地址:https://swagger.io/
 

@@ -596,7 +596,7 @@ rabbitmqctl set_permissions -p / root ".*" ".*" ".*"
 
 
 
-### 3.3 第一个简单模式
+### 3.3 第一个简单模式和其他消息模式
 
 我们来通过代码的方式来理解一下RabbitMQ之间是如何去通讯的!
 
@@ -610,7 +610,9 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
 
 ![image-20211019192307680](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211019192307680.png)
 
-其中第一种是简单模式,一个生产者一个消费者中间会有那个队列,
+其中:
+
+第一种是简单模式,一个生产者一个消费者中间会有那个队列,
 
 第二种是工作模式,这个就是指我们之前学的消息队列的分发策略中的轮询分发和公平分发两种机制,
 
@@ -619,6 +621,8 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
 第四种是Routing模式,它是在发布于订阅模式的基础之上增加了一个路由key,
 
 第五种是主题模式,增加了模糊的路由key,可以模糊匹配,
+
+第六种RPC是一种拉取机制,一般用得比较少,可以不用去理解!
 
 ![image-20211019192324454](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211019192324454.png)
 
@@ -662,7 +666,6 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
    ```
 
 > 定义生产者
->
 
    ```java
    package cn.miao.simple;
@@ -721,13 +724,13 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
                //6.发送消息给队列queue,
                /**
                 * @Params1 :交换机exchange
-                * @Params2 :队列名,表示往哪个队列里面去发
+                * @Params2 :队列名(路由key),表示往哪个队列里面去发,
                 * @Params3 :发送消息过程中是否要对这里面消息进行持久化,一般这里写`MessageProperties.PERSISTENT_TEXT_PLAIN`,
                 * @Params4 :发送的内容
                 */
                //这里Publish就是我们之前学习redis的命令,是发布者订阅者模式中的发布命令
                channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));
-   
+   			//面试题:可以存在没有交换机的队列吗?不可能!虽然没有指定交换机但是一定存在一个默认的交换机!
                System.out.println("消息发送成功!");
    
            } catch (Exception e) {
@@ -989,4 +992,200 @@ Broker:就是我们的MQ服务,一个节点的意思
 ![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy081077ba-eced-43f9-b148-6f63987f1d2f.png)
 
 ​	理解:这个跟生产者的执行流程整体是一样的!也是一样通过连接工厂获取然后设置属性进行打包放在协议头里发送到服务器进行碰撞! 碰撞成功就打开信道,然后就会信道里取一个出来,也就是说未来你会看到连接只有一个可能通道有多个;然后取了一个通道出来了以后在这里进行消费通过Basic.Consume进行消费,消费以后这里就会比上面多了一个点就是ACK应答,应答的话就有两种一种是手动应答一种是自动应答,而我们一般使用的是手动应答,就是代码与我们的NACK进行确认!因为这是一种消费者的可靠的消息消费!而正常应答的话就会从我们服务器中移除!而如果是不应答的话就会消息的不停重试直到消费为止,也就是出现了故障,那么消息队列就会被挂起,一旦被挂起生产者就会屏蔽生产者的消息的接受,系统就会发生故障!
+
+## 4.核心组成部分
+
+### 4.1 组成
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy62a1f9e3-027d-408a-8fb4-a176bd184d23.png)
+
+核心概念:
+
+- **Server**:又称Broke,它是接受客户端的连接,实现AMQP实体服务,也就是我们安装的rabbitmq-server
+- **Connection**:连接,应用程序与Broker的网络连接TCP/IP 三次握手和四次挥手,因为要不停的连接造成性能损耗,所以在基础之上开发了一个长连接来通过下面的Chanel信道来维持!
+- **Channel**:网络信道,几乎所有的操作我们都是在Channel中进行,Channel是进行消息读写的通道,客户端可以建立多个Channel,但每个Channel代表一个会话任务!
+- **Message**:消息,服务与应用程序之间传送的数据,由Properties和body组成;Properties可以对消息进行修饰,比如消息的优先级、延迟等高级特性,Body则是消息体的内容;
+- **Virtual Host**:虚拟地址,用于进行逻辑隔离,是最上层的消息路由,一个虚拟机主机路由可以有若干个Exchange和Queue,但是同一个虚拟主机里面不能有相同名字的Exchange
+- **Exchange**:交换机,主要用于接收消息,根据路由将发送消息到绑定的队列(`不具备消息存储的能力`)。要记住是交换机来接收投递给队列的,而不是队列来接收消息的!
+- **Bindings**:Exchange和Queue之间的虚拟连接,binding中可以保护多个routing key,就会把这个路由key和我们的交换机来绑定这个队列的一个对象!一旦绑定就形成一个闭环,接下来在发消息的过程中只要带上这个路由key,消费者在监听的时候就会通过这个路由key进行匹配!
+- **Routing key**:是一个路由规则,虚拟机可以用它来确定如何该路由是一个特定消息,这个路由key就是用于在分发消息的时候是否指定给特定的消费者进行分发!如果不带这个key那么就是全部人都会收到!
+- **Queue**:队列,也是消息队列,目的保存消息并将它们转发给消费者!
+
+**理解**:从图中可知一个Producer(生产者)生产我们的消息,会开辟一个连接然后连接里面就会有我们的通道,而通道里面就会有一个概念是交换机,这个交换机我们都看见过就是在生产者在信道中声明队列的第一个参数就是交换机,如:`channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));`,不过我们没写,那么注意没写不代表没有交换机,没指定交换机但是一定会有一个默认的交换机,这也是我们面试题会问到的:可以存在没有交换机的队列吗?!!!
+
+​	所以说生产者会开启连接开启通道,然后就会把消息通过交换机来传递给队列的!注意`消息一定是通过交换机来传递给队列的!`,虽然我们在声明队列的时候是直接把消息放在了队列中但其实不是这样的,因为MQ的底层语言是Erlang语言写的,而Erlang本身就是专门开发交换机的一个语言;回过头来:交换机就是负责消息的分发和投递,然后呢就会把消息投递到这个队列里面,而在这个投递的过程中就会有一些分发策略,也就是说可以通过路由key来进行过滤筛选给指定的消费者,没有的话直接分发给每一个消费者;
+
+​	这里我们还可以看见broker,代表是服务的意思也就是一个节点,它就是rabbitMQ的服务,后面也就是有很多的broker的集群,在这个集群里为了去隔离和区分,这里也搞了一个虚拟机节点,这个虚拟节点可以理解为我们电脑中的磁盘,比如C盘D盘,目的就是为了隔离!这样子去理解:我们在系统中有订单消息和用户消息等等各种各样的信息全部堆积在这个一个根节点就会庞大难以区分,所以这个虚拟节点就将其分隔开;然后消费者就会来订阅我们的消息,一旦被订阅,那么交换机就会把消息推送给我们的Cousumer(消费者);
+
+**总结**:其实说这么多,总体是这样的:一个生产者生产消息然后创建连接管道,然后在信道里通过交换机来传输消息到MQ服务中,而在MQ中存在多个虚拟节点当然由我们指定,然后在虚拟节点中通过交换机获取到消息然后进行消息分发和投递,这个时候就会有一些分发策略,在这个过程中会通过routingkey来筛选是否确定给指定的消费者分发消息,没有就都发!然后投递到我们的消息队列中,进行保存和转发!其中bindins就是交换机和队列之间的虚拟连接,中间保护了路由key;然后这个消费者也通过相同的步骤,订阅了我们这个消息,那么此时队列就会将消息转发给我们的消费者!
+
+
+
+**注意的点:**
+
+- rabbitmq发送消息一定有一个交换机
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudye28575ea-17f4-41a8-ac32-133727fd63ae.png)
+
+​	可以看见Bindings绑定的是默认交换机!
+
+并且在这里也可以看见交换机中有一个自带的默认交换机!
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudyd23fdb11-89c8-4883-a027-76d93d257138.png)
+
+> 这是MQ整体的架构图:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy23e6e571-d661-4f4b-b4f4-4d4efb766bc3.png)
+
+​	理解:这个跟上面是一样的,一个生产者将消息投递到交换机里面,在交换机里面就会把消息投递到队列里面,而在队列里面就会把消息进行分发,在分发的过程中进行过滤,比如加上路由key来指定消费者,就好比我们SQL中带上了`where routingkey=消费者1`这个意思;如果不过滤那么就不加!
+
+### 4.2 运行流程
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy2704cee9-3595-45de-892d-ee658e848806.png)
+
+**理解**:生产者通过业务数据也就是消息转换成JSON,当然不止JSON也可能是另外的方式,总之序列化转换成字节以后接下来通过交换机或者路由key来添加这个标签头或者这个队列的名字,传递到我们的MQ服务端,如果这个时候有消费者进行订阅了它,那么就可以根据他的策略进行分发,如果是发布者订阅模式那么它就会全部收到,如果你有routingkey的机制的话那么接下来就会根据routingkey来进行匹配;然后消费者在收到消息以后就会有一个反序列化过程,将业务数据反序列化出来比如是一个json,然后我们就能进行相关的业务处理!就是这个逻辑!
+
+## 5.消息模式示例与理解
+
+这是官网地址:https://www.rabbitmq.com/getstarted.html
+
+这里不进行介绍其中的RPC和发布确认模式,只介绍前五种
+
+### 5.1 简单模式
+
+![img](https://www.rabbitmq.com/img/tutorials/python-one.png)
+
+首先我们可以看到:P代表生产者,中间区域代表队列,C代表消费者;
+
+代码示例的话我已经在快速入门/第一个简单模式进行描述了!
+
+这里介绍如何使用MQ的图形化界面去操作这个简单模式:
+
+查看一些基本信息:
+
+1. 创建一个队列:
+
+   ![image-20211022170043529](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022170043529.png)
+
+2. 查看当前队列的信息,
+
+   ![image-20211022170717951](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022170717951.png)
+
+   其中D为持久化的意思,表示随着MQ的服务重启或者宕机,那么重启之后这个队列依然存在消息也会得到持久化;Ready代表是一个就绪的状态,Total代表消息有多少条,Unacked代表消息还有多少条未被确认;后面Message rates就是我们磁盘的一些状况以及我们应答的一些状态;
+
+3. 我们点击这个querue1可以看到Overview:
+
+   ![image-20211022171155626](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022171155626.png)
+
+   这个就是我们当前队列基本运行状况,以及它的一些条目数,...等等
+
+   .... 
+
+4. 点击`publish message`
+
+   ![image-20211022180843073](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022180843073.png)
+
+   这里面就是我们生产消息,其中`Delivery mode`表示是否是持久化的意思,1是不持久化,2是持久化,	
+
+5. 这里就是获取消息的地方,其中`Ack mode`选择的是Nack表示的预览消息,如果是选择的`Automatic ack`那么是应答消息,就会将消息从队列中移除!
+
+   ![image-20211022181206128](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022181206128.png)
+
+> 运行
+
+1. 点击Exchanges交换机发送消息
+
+   ![image-20211022181922744](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022181922744.png)
+
+   
+
+   2. 此时我们看到消息就是:处于一个就绪状态且总共有1条消息;
+
+      ![image-20211022183743995](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022183743995.png)
+
+   3. 然后点queue1然后查看消息:
+
+      ![image-20211022184419003](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022184419003.png)
+
+> 总结:无论是简单工模式还是工作队列模式它们都有一个默认的交换机,发送消息一定是交换机去发送而不是队列!,交换机接收消息推送到队列中,队列以后消费者会自动监听订阅消息,然后进行推送! 还有没有声明交换机那么一定是走默认的交换机
+
+### 5.2 Fanout模式
+
+这个模式也称"**发布与订阅模式**"
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/python-three.png)
+
+#### 5.2.1 web界面
+
+1. 创建一个fanout类型的交换机
+
+   ![image-20211022200712629](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022200712629.png)
+
+   2. 查看我们的交换机
+
+      ![image-20211022200816591](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022200816591.png)
+
+      此时我们的交换机已经创建好了!
+
+   3. 然后我们创建两个队列:
+
+      ![image-20211022201013069](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022201013069.png)
+
+   4. 再将两个队列与我们的自定义交换机进行绑定
+
+      ![image-20211022201335325](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022201335325.png)
+
+   5. 绑定后就是这种:
+
+      ![image-20211022201508468](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022201508468.png)
+
+      6. 接下来我们就往我们的交换机上投递一条信息,我们可以通过web页面俩模拟这个过程:
+
+         ![image-20211022202002123](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022202002123.png)
+
+      7. 然后此时我们就能看到对应的队列中已经存在了消息:
+
+         ![image-20211022202058346](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022202058346.png)
+
+      > 接下来只要有人订阅了我们这个队列,那么接下里都会收到消息;通过交换机与队列进行一对多进行绑定,那么我们只需要往一个交换机进行发送消息,那么消费者只要订阅了队列就会收到消息!就好比是广播,通过一个广播进行扩散!
+
+注意:我们可以看见这里有一个Routing key,那么思考我们可不可以给指定的队列绑定一个key,然后根据key去发送呢?其实这种是毫无意义的!也就是说无论你增加多少key,Fanout模式都会通过交换机将数据给绑定交换机的队列中发送!这里我是做过相关测试的!都会收到!加key是毫无意义的!!!
+
+### 5.3 Direct模式
+
+这个就是我们模式中的`Routing模式`
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy33427b78-879d-4511-9dd7-42fb33108339.png)
+
+这个模式跟上面的Fanout模式是差不多的,只不过这个模式比上面多了一个`路由key`的概念,这个路由key呢就相当于给它指定了一个where条件,比如:where routekey=error,而消费者就必须去绑定这个error,然后我们就会把属于error的这个消费者给查询出来;其实可以想象成是一个过滤的一个条件就可以了!
+
+#### 5.4 web界面
+
+步骤:
+
+1. 创建Direct模式的交换机
+
+   ![image-20211022210832934](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022210832934.png)
+
+2. 然后我们针对一个队列进行绑定一个routing key,这样我们待会就可以不用指定队列去发送:
+
+   ![image-20211022212101541](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022212101541.png)
+
+   最终就是这样子的:
+
+   ![image-20211022212145984](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022212145984.png)
+
+3. 然后我们现在就往order这个路由key里面发送消息:
+
+   ![image-20211022212416736](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022212416736.png)
+
+   > 发现就只有指定的路由key绑定的队列收到了消息,而其他却没有收到!这就是Direct模式
+   >
+   > 结论:Direct模式其实就是在fanout模式上增加了一个路由key;这个路由key只要命名为相同的key那么就可以归类分组,然后我们就可以根据类型分组去分发消息,它会根据key找到对应的队列然后进行分发,这样就达到了一个按需选择的目的;
+
+比如这种:
+
+![image-20211022213550448](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022213550448.png)
+
+给order发送消息,那么此时对应的两个队列都会收到消息,此时就已经达到了一个按需选择的目的!!!!
 

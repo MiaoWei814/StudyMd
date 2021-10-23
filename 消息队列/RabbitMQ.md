@@ -1005,19 +1005,19 @@ Broker:就是我们的MQ服务,一个节点的意思
 - **Connection**:连接,应用程序与Broker的网络连接TCP/IP 三次握手和四次挥手,因为要不停的连接造成性能损耗,所以在基础之上开发了一个长连接来通过下面的Chanel信道来维持!
 - **Channel**:网络信道,几乎所有的操作我们都是在Channel中进行,Channel是进行消息读写的通道,客户端可以建立多个Channel,但每个Channel代表一个会话任务!
 - **Message**:消息,服务与应用程序之间传送的数据,由Properties和body组成;Properties可以对消息进行修饰,比如消息的优先级、延迟等高级特性,Body则是消息体的内容;
-- **Virtual Host**:虚拟地址,用于进行逻辑隔离,是最上层的消息路由,一个虚拟机主机路由可以有若干个Exchange和Queue,但是同一个虚拟主机里面不能有相同名字的Exchange
+- **Virtual Host**:虚拟地址,用于进行逻辑隔离,是最上层的消息路由,一个虚拟机主机路由可以有若干个Exchange和Queue,但是同一个虚拟主机里面不能有相同名字的Exchange,这个虚拟地址就举个例子:MQ服务就好比是整个数据库服务,而Virture Host就好比是数据库中的单独的一个数据库,而之所以不能出现相同的交换机也可理解不能在单个数据库中出现相同的表名!!!
 - **Exchange**:交换机,主要用于接收消息,根据路由将发送消息到绑定的队列(`不具备消息存储的能力`)。要记住是交换机来接收投递给队列的,而不是队列来接收消息的!
 - **Bindings**:Exchange和Queue之间的虚拟连接,binding中可以保护多个routing key,就会把这个路由key和我们的交换机来绑定这个队列的一个对象!一旦绑定就形成一个闭环,接下来在发消息的过程中只要带上这个路由key,消费者在监听的时候就会通过这个路由key进行匹配!
 - **Routing key**:是一个路由规则,虚拟机可以用它来确定如何该路由是一个特定消息,这个路由key就是用于在分发消息的时候是否指定给特定的消费者进行分发!如果不带这个key那么就是全部人都会收到!
 - **Queue**:队列,也是消息队列,目的保存消息并将它们转发给消费者!
 
-**理解**:从图中可知一个Producer(生产者)生产我们的消息,会开辟一个连接然后连接里面就会有我们的通道,而通道里面就会有一个概念是交换机,这个交换机我们都看见过就是在生产者在信道中声明队列的第一个参数就是交换机,如:`channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));`,不过我们没写,那么注意没写不代表没有交换机,没指定交换机但是一定会有一个默认的交换机,这也是我们面试题会问到的:可以存在没有交换机的队列吗?!!!
+**理解**:从图中可知一个Producer(生产者)生产我们的消息,会开辟一个连接然后连接里面就会有我们的通道,而通道里面就会有一个概念是交换机,这个交换机我们都看见过就是在生产者在信道中声明队列的第一个参数就是交换机,如:`channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));`,不过我们没写,那么注意没写不代表没有交换机,没指定交换机但是一定会有一个默认的交换机,默认交换机的模式是Direct路由模式,这也是我们面试题会问到的:可以存在没有交换机的队列吗?!!!
 
 ​	所以说生产者会开启连接开启通道,然后就会把消息通过交换机来传递给队列的!注意`消息一定是通过交换机来传递给队列的!`,虽然我们在声明队列的时候是直接把消息放在了队列中但其实不是这样的,因为MQ的底层语言是Erlang语言写的,而Erlang本身就是专门开发交换机的一个语言;回过头来:交换机就是负责消息的分发和投递,然后呢就会把消息投递到这个队列里面,而在这个投递的过程中就会有一些分发策略,也就是说可以通过路由key来进行过滤筛选给指定的消费者,没有的话直接分发给每一个消费者;
 
-​	这里我们还可以看见broker,代表是服务的意思也就是一个节点,它就是rabbitMQ的服务,后面也就是有很多的broker的集群,在这个集群里为了去隔离和区分,这里也搞了一个虚拟机节点,这个虚拟节点可以理解为我们电脑中的磁盘,比如C盘D盘,目的就是为了隔离!这样子去理解:我们在系统中有订单消息和用户消息等等各种各样的信息全部堆积在这个一个根节点就会庞大难以区分,所以这个虚拟节点就将其分隔开;然后消费者就会来订阅我们的消息,一旦被订阅,那么交换机就会把消息推送给我们的Cousumer(消费者);
+​	这里我们还可以看见broker,代表是服务的意思也就是一个节点,它就是rabbitMQ的服务,后面也就是有很多的broker的集群,在这个集群里为了去隔离和区分,这里也搞了一个虚拟机节点,这个虚拟节点可以理解为我们电脑中的磁盘,比如C盘D盘,目的就是为了隔离!这样子去理解:我们在系统中有订单消息和用户消息等等各种各样的信息全部堆积在这个一个根节点就会庞大难以区分,所以这个虚拟节点就将其分隔开,在web界面在admin那里就可以看见一个Virture Host虚拟节点,默认是"/"根节点!;然后消费者就会来订阅我们的消息,一旦被订阅,那么交换机就会把消息推送给我们的Cousumer(消费者);
 
-**总结**:其实说这么多,总体是这样的:一个生产者生产消息然后创建连接管道,然后在信道里通过交换机来传输消息到MQ服务中,而在MQ中存在多个虚拟节点当然由我们指定,然后在虚拟节点中通过交换机获取到消息然后进行消息分发和投递,这个时候就会有一些分发策略,在这个过程中会通过routingkey来筛选是否确定给指定的消费者分发消息,没有就都发!然后投递到我们的消息队列中,进行保存和转发!其中bindins就是交换机和队列之间的虚拟连接,中间保护了路由key;然后这个消费者也通过相同的步骤,订阅了我们这个消息,那么此时队列就会将消息转发给我们的消费者!
+**总结**:其实说这么多,总体是这样的:一个生产者生产消息然后创建连接管道,当然可以创建多个连接管道,然后在其中一个连接管道里获取一个信道里通过交换机来传输消息到MQ服务中,而在MQ中存在多个虚拟节点当然由我们指定,这些虚拟节点的目的就是为了隔离与区分,就好比电脑盘符去指定盘符下运行,然后在虚拟节点中通过交换机获取到消息然后进行消息分发和投递,这个时候就会有一些分发策略,如:发布订阅模式,轮询分发等等,在这个过程中会通过routingkey来筛选是否确定给指定的消费者分发消息,没有就都发!然后投递到我们的消息队列中,进行保存和转发!其中bindins就是交换机和队列之间的虚拟连接,中间保护了路由key;然后这个消费者也通过相同的步骤,订阅了我们这个消息,也就是消费者跟队列进行绑定,生产者生产消息跟交换机绑定,bindings把交换机和队列进行绑定,那么此时队列就会将消息转发给我们的消费者!
 
 
 
@@ -1050,6 +1050,10 @@ Broker:就是我们的MQ服务,一个节点的意思
 这是官网地址:https://www.rabbitmq.com/getstarted.html
 
 这里不进行介绍其中的RPC和发布确认模式,只介绍前五种
+
+> 我们只要明白消息模式是通过交换机和队列绑定关系以后,那么消息的发送是通过交换机去进行分发的!
+
+注:消息模式其实就是交换机的类型,指定类型就决定了如何去分发到我们的队列中!当然这消息模式与我们之前的消息的分发策略也是一样的!说白了消息模式就是分发策略的外表,其核心就是分发策略!
 
 ### 5.1 简单模式
 
@@ -1093,11 +1097,13 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 > 运行
 
-1. 点击Exchanges交换机发送消息
+1. 点击Exchanges交换机发送消息,因为哪怕是简单模式那么都会有一个默认的交换机,所以我们往默认的交换机发送消息!并且我们这里发送消息要指定Routing key,因为是默认的交换机,这里的路由key就相当于指定了队列名,指定队列发送!
 
    ![image-20211022181922744](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022181922744.png)
 
-   
+   如果我们没指定路由key,那么就会报异常:翻译为:邮件已发布，但未路由。
+
+   ![image-20211023100437256](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023100437256.png)
 
    2. 此时我们看到消息就是:处于一个就绪状态且总共有1条消息;
 
@@ -1115,7 +1121,7 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 ![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/python-three.png)
 
-#### 5.2.1 web界面
+#### 1. web界面
 
 1. 创建一个fanout类型的交换机
 
@@ -1131,7 +1137,7 @@ Broker:就是我们的MQ服务,一个节点的意思
 
       ![image-20211022201013069](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022201013069.png)
 
-   4. 再将两个队列与我们的自定义交换机进行绑定
+   4. 点击queue2和queue3然后将队列与我们的自定义交换机进行绑定
 
       ![image-20211022201335325](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022201335325.png)
 
@@ -1151,6 +1157,210 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 注意:我们可以看见这里有一个Routing key,那么思考我们可不可以给指定的队列绑定一个key,然后根据key去发送呢?其实这种是毫无意义的!也就是说无论你增加多少key,Fanout模式都会通过交换机将数据给绑定交换机的队列中发送!这里我是做过相关测试的!都会收到!加key是毫无意义的!!!
 
+#### 2. 代码演示
+
+类型是**fanout**模式
+
+特点:Fanout是一种发布与订阅模式,是一种广播机制,它是没有没有路由key的模式!
+
+这是图解:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy160fd9d8-2b42-4d43-b0d6-b4e47e272e8f.png)
+
+接下来我们就围着这张图去通过代码的方式去描述使用:
+
+> 生产者:
+
+```java
+package cn.miao.fanout;
+
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 生产者-fanout模式广播机制,只要跟fanout模式绑定的队列都会收到这个交换机里的消息
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Producer {
+
+    public static void main(String[] args) {
+
+        //1: 创建连接工程
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        //2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        connectionFactory.setVirtualHost("/");
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            //3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            //4: 从连接中获取信道channel
+            channel = connection.createChannel();
+            //5: 准备消息发送的内容
+            String message = "你好啊!fanout广播模式!";
+            String exchangeName = "fanout-exchange";
+            //因为Fanout模式不需要路由key,因为毫无意义!
+            String routingKey = "";
+
+            /**
+             * 6: 发送消息给中间件rabbitmq-server
+             * @Params1 :交换机exchange
+             * @Params2 :队列名称/routingkey
+             * @Params3 :属性配置
+             * @Params4 :发送消息的内容
+             */
+            channel.basicPublish(exchangeName, routingKey, null, message.getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("消息发送成功!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            //7.关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            //8.关闭连接
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+整个生产者的过程就是获取连接通过连接创建一个信道,而我们在信道里发送消息给交换机!
+
+投递到Fanout交换机,而交换机与队列进行绑定,那么此时我们往交换机发送消息那么此时绑定对应的队列就会收到一条信息!
+
+> 消费者
+
+```java
+package cn.miao.fanout;
+
+import com.rabbitmq.client.*;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 消费者-fanout模式
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Consumer {
+    private static final Runnable RUNNABLE = () -> {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        //获取队列的名称
+        final String queueName = Thread.currentThread().getName();
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 5: 申明队列queue存储消息
+            /*
+             *  如果队列不存在，则会创建
+             *  Rabbitmq不允许创建两个相同的队列名称，否则会报错。
+             *
+             *  @params1： queue 队列的名称
+             *  @params2： durable 队列是否持久化
+             *  @params3： exclusive 是否排他，即是否私有的，如果为true,会对当前队列加锁，其他的通道不能访问，并且连接自动关闭
+             *  @params4： autoDelete 是否自动删除，当最后一个消费者断开连接之后是否自动删除消息。
+             *  @params5： arguments 可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等。
+             * */
+            // 这里如果queue已经被创建过一次了，可以不需要定义
+            //channel.queueDeclare("queue1", false, false, false, null);
+            // 6： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //因为我已经在web界面将交换机和队列已经绑定了,所以就可以无需绑定队列!
+            finalChannel.basicConsume(queueName, true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    System.out.println(queueName + "：收到消息是：" + new String(delivery.getBody(), StandardCharsets.UTF_8));
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println(queueName + "：开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    };
+
+    public static void main(String[] args) {
+        // 启动三个线程去执行充当消费者去订阅消息监听
+        new Thread(RUNNABLE, "queue1").start();
+        new Thread(RUNNABLE, "queue2").start();
+        new Thread(RUNNABLE, "queue3").start();
+    }
+}
+```
+
+首先我们在web界面有三个队列然后与我们的交换机进行绑定,然后这里定义三个线程也就是消费者然后去订阅监听我们的队列,只要生产者生产消息通过fanout交换机转发到队列中,那么消费者就能收到消息!
+
+> 这是控制台打印输出
+
+生产者:
+
+![image-20211023212625710](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023212625710.png)
+
+消费者:
+
+![image-20211023212637663](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023212637663.png)
+
+> 其实无论是代码还是图形化界面都是为了表达:消息是通过交换机去传递给队列,队列之后就会推送给我们消费者,就是这样的一个关系!
+
 ### 5.3 Direct模式
 
 这个就是我们模式中的`Routing模式`
@@ -1159,7 +1369,7 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 这个模式跟上面的Fanout模式是差不多的,只不过这个模式比上面多了一个`路由key`的概念,这个路由key呢就相当于给它指定了一个where条件,比如:where routekey=error,而消费者就必须去绑定这个error,然后我们就会把属于error的这个消费者给查询出来;其实可以想象成是一个过滤的一个条件就可以了!
 
-#### 5.4 web界面
+#### 1. web界面
 
 步骤:
 
@@ -1179,6 +1389,8 @@ Broker:就是我们的MQ服务,一个节点的意思
 
    ![image-20211022212416736](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211022212416736.png)
 
+   注意:在发送消息的时候必须要指定发送的路由key,不然就会失败!
+   
    > 发现就只有指定的路由key绑定的队列收到了消息,而其他却没有收到!这就是Direct模式
    >
    > 结论:Direct模式其实就是在fanout模式上增加了一个路由key;这个路由key只要命名为相同的key那么就可以归类分组,然后我们就可以根据类型分组去分发消息,它会根据key找到对应的队列然后进行分发,这样就达到了一个按需选择的目的;
@@ -1189,3 +1401,81 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 给order发送消息,那么此时对应的两个队列都会收到消息,此时就已经达到了一个按需选择的目的!!!!
 
+
+
+#### 2. 代码演示
+
+特点:Direct模式是fanout模式上的一种叠加，增加了路由RoutingKey的模式。
+
+图解:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy33427b78-879d-4511-9dd7-42fb33108339.png)
+
+接下来我们就去围绕这张图去用代码去进行一个代码演示:
+
+> 生产者
+
+```java
+
+```
+
+
+
+
+
+### 5.4 Topic模式
+这个是主题模式,这个模式比Direct模式又多了一点内容,也就是可以支持模糊匹配的路由key:
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy89e09dbc-b6ee-4db6-a6f2-ddbd7b4d95d6.png)
+
+#### 5.4.1 web界面
+
+我们来实际操作一下web界面使用主题模式:
+
+步骤:
+
+1. 创建一个Topic模式的交换机:
+
+   ![image-20211023141526044](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023141526044.png)
+
+2. 在交换机里面去绑定对应的队列:
+
+   ![image-20211023141956334](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023141956334.png)
+
+   ```bash
+   # 代表的是零个或者一个或者多个也就是多集,多集就是这样:com.xxxx.xxx.xx 无论点多少都无所谓,比如:com、com.xxx.x、com.xxx 都能进行匹配!
+   * 代表的是有一个,但是只能有一集 ,比如这样: xx.course.xx,但是像xx.xx.course.xx就不能进行匹配,因为前面存在多集了!!!
+   ```
+
+3. 接下里我们我们给queue1和queue2和queue3发送消息,那么此时该如何去发:
+
+   ![image-20211023145204609](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023145204609.png)
+
+   ​	我们随便点开一个queue3查看:
+
+   ​	![image-20211023145848682](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023145848682.png)
+
+> 只会给满足条件的路由key对应的队列发送消息,比如:com.course.order.user.test ,此时每个key都满足,但是除了course,因为它是\*.course.\*,后面存在多集,所以它不满足不会对他进行发送消息!
+
+### 5.5 Headers模式
+
+这个是一种参数的模式,也就是说可以根据我们的参数来进行一个过滤!
+
+#### 5.5.1 web界面
+
+1. 创建一个Headers模式的交换机
+
+   ![image-20211023190331117](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023190331117.png)
+
+2. 跟队列进行绑定,并且指定了参数:
+
+   ![image-20211023190951809](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023190951809.png)
+
+3. 然后我们发消息:
+
+   ![image-20211023191736630](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023191736630.png)
+
+4. 此时我们去queue1中可以查看到这个消息:
+
+   ![image-20211023191831036](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023191831036.png)
+
+> 也就说这个模式就是根据我们的条件去达成!通过在发送消息的设置Headers,然后去交换机里找是否满足条件!

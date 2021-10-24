@@ -729,7 +729,8 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
                 * @Params4 :发送的内容
                 */
                //这里Publish就是我们之前学习redis的命令,是发布者订阅者模式中的发布命令
-               channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));
+               //这里因为是默认交换机所以类型为direct,所以这里的routingkey默认为队列名,
+               channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8)); 
    			//面试题:可以存在没有交换机的队列吗?不可能!虽然没有指定交换机但是一定存在一个默认的交换机!
                System.out.println("消息发送成功!");
    
@@ -757,7 +758,9 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
    }
    ```
 
-   以上就完成了从生产者到队列的这个过程:
+> 注意:因为我们没有指定交换机那么一定走的是默认的交换机,而我们在发布消息的时候,routing key却是队列名,这是因为当没有交换机的话那么routingkey一般指定的是我们的队列!  
+
+ 以上就完成了从生产者到队列的这个过程:
 
    ![image-20211019195727930](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211019195727930.png)
 
@@ -824,24 +827,21 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
 ```java
 package cn.miao.simple;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.*;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
  * @program: QuickStart-RabbitMQ
- * @description: 生产者
+ * @description: 消费者
  * @author: MiaoWei
  * @create: 2021-10-19 18:28
  **/
-public class Producer {
-
+public class Consumer {
     public static void main(String[] args) {
         //所有的中间件技术都是基于tcp/ip协议基础之上构建新型的协议规范,只不过rabbitMQ遵循的是AMQP协议
         //为什么有AMQP协议:就是因为TCP/IP协议无法去满足它的一些规范,比如我要把这消息的一些标签,通道,都要把它记录起来,这个TCP/IP就无法满足了!
-        //所以开发出一个协议在这之上定义一些属于自己的规范,然后命名为AMQP
 
         //1.创建连接工程
         ConnectionFactory connectionFactory = new ConnectionFactory();
@@ -849,8 +849,7 @@ public class Producer {
         connectionFactory.setPort(5672);
         connectionFactory.setUsername("admin");
         connectionFactory.setPassword("admin");
-        //设置虚拟访问节点,是指把我们的消息发在根节点上
-        connectionFactory.setVirtualHost("/");
+//        connectionFactory.setVirtualHost("/");  //把消息发在我们的根节点上
 
         Connection connection = null;
         Channel channel = null;
@@ -860,29 +859,26 @@ public class Producer {
             //3.通过连接获取通道channel
             channel = connection.createChannel();
             //4.通过通道创建交换机,声明队列,绑定关系,路由key,发送消息和接收消息
-            /**
-             * @Params1 队列的名称
-             * @Params2 是否要持久化durable=false,所谓的持久消息是否要存盘,false: 非持久化,true: 持久化,  思考?非持久化会存盘吗?
-             * @Params3 排他性, 是否是一个独占队列
-             * @Params4 是否自动删除, 随着最后一个消费者消息完毕消息以后是否把队列自动删除
-             * @Params5 携带一些附加参数
-             */
-            String queueName = "queue1";
-            //声明队列
-            channel.queueDeclare(queueName, false, false, false, null);
-            //5.准备发送消息内容
-            String message = "Hello MQ,I is Simple";
-            //6.发送消息给队列queue,
-            /**
-             * @Params1 :暂时为空
-             * @Params2 :队列名,表示往哪个队列里面去发
-             * @Params3 :发送消息过程中是否要对这里面消息进行持久化,一般这里写`MessageProperties.PERSISTENT_TEXT_PLAIN`,
-             * @Params4 :发送的内容
-             */
-            channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8));
+            //这里表示从`queue1`这个队列里面取
+            channel.basicConsume("queue1", true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    System.out.println("收到消息是 " + new String(delivery.getBody(), StandardCharsets.UTF_8));
+                }
+                //这里是出现异常的状况,比如接收消息失败!
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                    //出现异常的状况
+                    System.out.println("接收消息失败!");
+                }
+            });
+
+            System.out.println("开始接收消息");
+            //这里我不让程序往下执行,进行阻断
+            System.in.read();
 
             System.out.println("消息发送成功!");
-
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
@@ -1416,18 +1412,204 @@ public class Consumer {
 > 生产者
 
 ```java
+package cn.miao.direct;
 
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 生产者-direct模式 指定路由key进行发送
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Producer {
+
+    public static void main(String[] args) {
+
+        //1: 创建连接工程
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        //2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        connectionFactory.setVirtualHost("/");
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            //3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            //4: 从连接中获取信道channel
+            channel = connection.createChannel();
+            //5: 准备消息发送的内容
+            String message = "你好啊!direct路由模式!";
+            String exchangeName = "direct-exchange";
+            //指定路由key进行发送,由于我们使用direct类型的交换机和队列绑定,使用routing key,所以我们只需要给路由key,那么
+            //对应的队列就会收到消息
+            String routingKey1 = "order";
+            String routingKey2 = "course";
+
+            /**
+             * 6: 发送消息给中间件rabbitmq-server
+             * @Params1 :交换机exchange
+             * @Params2 :队列名称/routingkey
+             * @Params3 :属性配置
+             * @Params4 :发送消息的内容
+             */
+            channel.basicPublish(exchangeName, routingKey1, null, message.getBytes(StandardCharsets.UTF_8));
+            channel.basicPublish(exchangeName, routingKey2, null, message.getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("消息发送成功!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            //7.关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            //8.关闭连接
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+}
 ```
 
+我们这里就是修改了路由key,然后指定了交换机就可以了!
 
+> 消费者
 
+```java
+package cn.miao.direct;
 
+import com.rabbitmq.client.*;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 消费者-direct模式
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Consumer {
+    private static final Runnable RUNNABLE = () -> {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        //获取队列的名称
+        final String queueName = Thread.currentThread().getName();
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 5: 申明队列queue存储消息
+            /*
+             *  如果队列不存在，则会创建
+             *  Rabbitmq不允许创建两个相同的队列名称，否则会报错。
+             *
+             *  @params1： queue 队列的名称
+             *  @params2： durable 队列是否持久化
+             *  @params3： exclusive 是否排他，即是否私有的，如果为true,会对当前队列加锁，其他的通道不能访问，并且连接自动关闭
+             *  @params4： autoDelete 是否自动删除，当最后一个消费者断开连接之后是否自动删除消息。
+             *  @params5： arguments 可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等。
+             * */
+            // 这里如果queue已经被创建过一次了，可以不需要定义
+            //channel.queueDeclare("queue1", false, false, false, null);
+            // 6： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //因为我已经在web界面将交换机和队列已经绑定了,所以就可以无需绑定队列!
+            finalChannel.basicConsume(queueName, true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    System.out.println(queueName + "：收到消息是：" + new String(delivery.getBody(), StandardCharsets.UTF_8));
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println(queueName + "：开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    };
+
+    public static void main(String[] args) {
+        // 启动三个线程去执行充当消费者去订阅消息监听
+        new Thread(RUNNABLE, "queue1").start();
+        new Thread(RUNNABLE, "queue2").start();
+        new Thread(RUNNABLE, "queue3").start();
+    }
+}
+```
+
+> 打印输出:
+
+这是绑定的路由key:
+
+![image-20211024185009575](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024185009575.png)
+
+生产者:
+
+![image-20211024185053347](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024185053347.png)
+
+消费者:
+
+![image-20211024185151316](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024185151316.png)
+
+> 可以发现:这里三个队列都收到了消息,而我们就是指定了路由key和交换机,就可以了!在图形化界面绑定了交换机和队列之间的路由key!
 
 ### 5.4 Topic模式
+
 这个是主题模式,这个模式比Direct模式又多了一点内容,也就是可以支持模糊匹配的路由key:
 ![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy89e09dbc-b6ee-4db6-a6f2-ddbd7b4d95d6.png)
 
-#### 5.4.1 web界面
+#### 1. web界面
 
 我们来实际操作一下web界面使用主题模式:
 
@@ -1456,11 +1638,211 @@ public class Consumer {
 
 > 只会给满足条件的路由key对应的队列发送消息,比如:com.course.order.user.test ,此时每个key都满足,但是除了course,因为它是\*.course.\*,后面存在多集,所以它不满足不会对他进行发送消息!
 
+#### 2.代码演示
+
+特点:Topic模式是direct模式上的一种叠加，增加了模糊路由RoutingKey的模式。
+
+图解:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy89e09dbc-b6ee-4db6-a6f2-ddbd7b4d95d6.png)
+
+> 生产者
+
+```java
+package cn.miao.topics;
+
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 生产者-topic模式 增加了模糊路由key进行发送
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Producer {
+
+    public static void main(String[] args) {
+
+        //1: 创建连接工程
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        //2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        connectionFactory.setVirtualHost("/");
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            //3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            //4: 从连接中获取信道channel
+            channel = connection.createChannel();
+            //5: 准备消息发送的内容
+            String message = "你好啊!Topic路由模式!";
+            String exchangeName = "topic-exchange";
+            //这里增加了模糊路由key进行发送!
+            String routingKey1 = "com.course.order";
+
+            /**
+             * 6: 发送消息给中间件rabbitmq-server
+             * @Params1 :交换机exchange
+             * @Params2 :队列名称/routingkey
+             * @Params3 :属性配置
+             * @Params4 :发送消息的内容
+             */
+            channel.basicPublish(exchangeName, routingKey1, null, message.getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("消息发送成功!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            //7.关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            //8.关闭连接
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+> 消费者
+
+```java
+package cn.miao.topics;
+
+import com.rabbitmq.client.*;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 消费者-topic模式
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Consumer {
+    private static final Runnable RUNNABLE = () -> {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        //获取队列的名称
+        final String queueName = Thread.currentThread().getName();
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 5: 申明队列queue存储消息
+            /*
+             *  如果队列不存在，则会创建
+             *  Rabbitmq不允许创建两个相同的队列名称，否则会报错。
+             *
+             *  @params1： queue 队列的名称
+             *  @params2： durable 队列是否持久化
+             *  @params3： exclusive 是否排他，即是否私有的，如果为true,会对当前队列加锁，其他的通道不能访问，并且连接自动关闭
+             *  @params4： autoDelete 是否自动删除，当最后一个消费者断开连接之后是否自动删除消息。
+             *  @params5： arguments 可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等。
+             * */
+            // 这里如果queue已经被创建过一次了，可以不需要定义
+            //channel.queueDeclare("queue1", false, false, false, null);
+            // 6： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //因为我已经在web界面将交换机和队列已经绑定了,所以就可以无需绑定队列!
+            finalChannel.basicConsume(queueName, true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    System.out.println(queueName + "：收到消息是：" + new String(delivery.getBody(), StandardCharsets.UTF_8));
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println(queueName + "：开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    };
+
+    public static void main(String[] args) {
+        // 启动三个线程去执行充当消费者去订阅消息监听
+        new Thread(RUNNABLE, "queue1").start();
+        new Thread(RUNNABLE, "queue2").start();
+        new Thread(RUNNABLE, "queue3").start();
+    }
+}
+```
+
+
+
+> 打印输出:
+
+这是图形化界面显示的模糊路由key
+
+![image-20211024190319145](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024190319145.png)
+
+生产者:
+
+![image-20211024190355681](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024190355681.png)
+
+消费者:
+
+![image-20211024190605283](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024190605283.png)
+
+> 可以发现,我们使用Topic模式的交换机,建立模糊路由key,那么就会自动去匹配去查找,如果符合要求那么就会给绑定对应的队列去推送消息,而消费者绑定队列,也在监听队列,所以一旦被推送那么就立马收到!当然要注意#代表0个或者多集,而*号代表必须有并且只有一集;
+
 ### 5.5 Headers模式
 
 这个是一种参数的模式,也就是说可以根据我们的参数来进行一个过滤!
 
-#### 5.5.1 web界面
+#### 1. web界面
 
 1. 创建一个Headers模式的交换机
 
@@ -1479,3 +1861,790 @@ public class Consumer {
    ![image-20211023191831036](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211023191831036.png)
 
 > 也就说这个模式就是根据我们的条件去达成!通过在发送消息的设置Headers,然后去交换机里找是否满足条件!
+
+
+
+### 5.6 Work queues模式
+
+当有多个消费者时,我们的消息会被哪个消费者消费呢?我们又该如何均衡消费者信息的多少呢?
+
+主要有两种模式:
+
+1. 轮询模式的分发:一个消费者一条,`按均分配`;
+2. 公平分发:根据消费者的消费能力进行公平分发,处理快的处理多,处理慢的处理的少,总之`按劳分配`;
+
+#### 1. 轮询分发(Round-Robin)
+
+图解:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy6f38311d-bcff-4d63-9c60-4ff4103eb3e0.png)
+
+特点:该模式接收消息时当有多个消费者接入时，消息的分配模式是一个消费者分配一条，直至消息消费完成;
+
+> 生产者
+
+```java
+package cn.miao.work.lunxun;
+
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+/**
+ * @author:
+ * @description: Producer 简单队列生产者
+ * @Date : 2021/3/2
+ */
+public class Producer {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 6： 准备发送消息的内容
+            for (int i = 1; i <= 20; i++) {
+                //消息的内容
+                String msg = "MiaoDaWei:" + i;
+                // 7: 发送消息给中间件rabbitmq-server
+                // @params1: 交换机exchange
+                // @params2: 队列名称/routingkey
+                // @params3: 属性配置
+                // @params4: 发送消息的内容
+                channel.basicPublish("", "queue1", null, msg.getBytes());
+            }
+            System.out.println("消息发送成功!");
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+注意我们这里使用的默认的交换机,所以routingkey是队列名,我们这里循环往队列queue1中推送消息,然后此时我们就看见queue1中就有20条数据,然后我们运行看看消费者是如何获取进行分配的!
+
+![image-20211024201557382](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024201557382.png)
+
+> 消费者1
+
+```java
+package cn.miao.work.lunxun;
+import com.rabbitmq.client.*;
+import java.io.IOException;
+/**
+ * @author:
+ * @description: Consumer
+ * @Date : 2021/3/2
+ */
+public class Work1 {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("消费者-Work1");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+
+            // 5： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //这里第二个参数:自动应答,正常消费消息的话就会剔除,还有轮询模式必须是自动应答
+            finalChannel.basicConsume("queue1", true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    try{
+                        System.out.println("Work1-收到消息是：" + new String(delivery.getBody(), "UTF-8"));
+                        //模拟一下这个消费者服务器处理消息的速度较慢
+                        Thread.sleep(2000);
+                    }catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println("Work1-开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+> 消费者2
+
+```java
+package cn.miao.work.lunxun;
+import com.rabbitmq.client.*;
+import java.io.IOException;
+/**
+ * @author:
+ * @description: Consumer
+ * @Date : 2021/3/2
+ */
+public class Work2 {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("消费者-Work2");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+
+            // 5： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //这里第二个参数:自动应答,正常消费消息的话就会剔除,还有轮询模式必须是自动应答
+            finalChannel.basicConsume("queue1", true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    try{
+                        System.out.println("Work2-收到消息是：" + new String(delivery.getBody(), "UTF-8"));
+                        //模拟一下当前消费者服务器处理消息的速度是较快的!
+                        Thread.sleep(200);
+                    }catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println("Work2-开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+> 此时我们就来看效果会不会因为其中消费者处理消息速度快慢而影响两个消费者获取消息条数的多少,现在一共发了20条,那么理论上应该每人10条:
+
+这是work1:
+
+![image-20211024203940938](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024203940938.png)
+
+这是work2:
+
+![image-20211024204000282](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024204000282.png)
+
+结论:我们启动了两个消费者然后开始启动生产者投递消息,此时我们就可以看见消费者2因为处理消息速度较快,所以一下就跑完了,而消费者1处理较慢,需要一秒执行一次;但是可以看见两者收到的消息是平均的,哪怕如果出现奇数消息数量,那么最后一个就是随机的!
+
+并且我们需要注意的点就是我们要开启一个自动应答!这样才是轮询分发!
+
+> 总结
+
+轮询模式就是一种均分性,怎么说呢?就好比是现在有一台服务器消费者,它性能比较好处理一条消息只需要100毫秒,而另一台服务器消费者性能比较不好处理消息需要1秒,而是由轮询模式进行分发消息的时候不会因为这其中的服务器消费者处理消息的慢而少消费,而是每台消费者`平衡均分消息数量`!
+
+
+
+#### 2. 公平分发(Fair Dispatch)
+
+图解:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy6f38311d-bcff-4d63-9c60-4ff4103eb3e0.png)
+
+特点:由于消息接收者处理消息的能力不同,存在处理快慢的问题,我们就需要能者多劳模式,处理快的多处理,处理慢的少处理;
+
+> 生产者
+
+```java
+package cn.miao.work.fair;
+
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+/**
+ * @author:
+ * @description: Producer 简单队列生产者
+ * @Date : 2021/3/2
+ */
+public class Producer {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 6： 准备发送消息的内容
+            for (int i = 1; i <= 20; i++) {
+                //消息的内容
+                String msg = "MiaoDaWei:" + i;
+                // 7: 发送消息给中间件rabbitmq-server
+                // @params1: 交换机exchange
+                // @params2: 队列名称/routingkey
+                // @params3: 属性配置
+                // @params4: 发送消息的内容
+                channel.basicPublish("", "queue1", null, msg.getBytes());
+            }
+            System.out.println("消息发送成功!");
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+> 消费者1
+
+```java
+package cn.miao.work.fair;
+
+import com.rabbitmq.client.*;
+
+import java.io.IOException;
+
+/**
+ * @author:
+ * @description: Consumer
+ * @Date : 2021/3/2
+ */
+public class Work1 {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("消费者-Work1");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+
+            // 同一时刻，服务器只会推送一条消息给消费者
+            // 5： 定义接受消息的回调
+            Channel finalChannel = channel;
+
+            finalChannel.basicQos(1);
+            //公平分发需要将第二个参数设置为false,表示这是手动应答
+            finalChannel.basicConsume("queue1", false, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    try{
+                        System.out.println("Work1-收到消息是：" + new String(delivery.getBody(), "UTF-8"));
+                        //模拟一下这个消费者服务器处理消息的速度较慢
+                        Thread.sleep(2000);
+                        //手动应答,第二个参数表示单条消费
+                        //一定要使用我们的手动应答
+                        finalChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                    }catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println("Work1-开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+> 消费2
+
+```java
+package cn.miao.work.fair;
+
+import com.rabbitmq.client.*;
+
+import java.io.IOException;
+
+/**
+ * @author:
+ * @description: Consumer
+ * @Date : 2021/3/2
+ */
+public class Work2 {
+    public static void main(String[] args) {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("消费者-Work2");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+
+
+            // 5： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //指标定义出来,默认为空表示轮询分发,我们定义出来=1表示一条,表示一次性从队列中取多少条过来的过程
+            // 同一时刻，服务器只会推送一条消息给消费者
+            finalChannel.basicQos(1);
+            //公平分发需要将第二个参数设置为false,表示这是手动应答
+            finalChannel.basicConsume("queue1", false, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    try{
+                        System.out.println("Work2-收到消息是：" + new String(delivery.getBody(), "UTF-8"));
+                        //模拟一下当前消费者服务器处理消息的速度是较快的!
+                        Thread.sleep(200);
+                        //手动应答,第二个参数表示单条消费
+                        //一定要使用我们的手动应答
+                        finalChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                    }catch(Exception ex){
+                        ex.printStackTrace();
+                    }
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println("Work2-开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+
+
+> 看输出:
+
+这是work1:
+
+![image-20211024211822590](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024211822590.png)
+
+这是work2:
+
+![image-20211024211838689](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024211838689.png)
+
+
+
+> 总结:
+
+可以发现work2的服务器资源消耗的比较少也就是它的处理速度会快,所以它就会进行一种消息的窃取,而work1处理消息的速度比较慢,所以导致被分配的消息数量就少!
+
+
+
+#### 3.小结
+
+所以说我们的公平分发讲究的就是一种能者多劳,而轮询分发讲究的是均分机制,这就是两者的区别;
+
+注意点:公平分发一定要使用手动应答,而轮询分发是默认的!
+
+轮询分发:
+
+```java
+//轮询分发就是一种公平性,也就是说我们不去配置写与不写,那么都是一种公平机制也就是轮询机制 
+// 就跟正常的发送消息即可,重点是在这里:
+//消费者, 这里第二个参数为true,表示是自动应答
+finalChannel.basicConsume("queue1", true, new DeliverCallback() {
+```
+
+公平分发:
+
+```java
+//指标定义出来,默认为空表示轮询分发,我们定义出来=1表示一条,表示一次性从队列中取多少条过来的过程
+//如果我们把qos=1那么这个时候就有一个时间差,如果这个服务器性能比较快那么接下里就会多处理消息,
+//Qos设置多大根据自己的服务器内存状况和磁盘空间决定!
+finalChannel.basicQos(1);
+//公平分发就一定要开启手动应答
+finalChannel.basicConsume("queue1", false, new DeliverCallback() {
+    ...
+        //这里因为我们设置了手动应答,那么这里就要我们手动的进行应答,还有这里的false表示是否是单条消费
+    finalChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+}
+```
+
+
+
+我认为公平分发的原理是这样的:公平分发是通过设置`finalChannel.basicQos(1);`qos的多少,让当前消费者在处理完消息后就会立即往队列中一次性获取多少条,这样处理消息比较快的消费者就会不停的往队列里获取消息,而处理较慢的因为大部分的消息都被处理快的抢走了,所以让看起来分配消息却很少!而轮询分发我们不用设置QOS的数量,默认为null,所以每个消费者都是同等数量的消息!
+
+
+
+
+
+### 5.7 完整的声明创建方式
+
+![image-20211024191556418](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024191556418.png)
+
+注意我们是先通过web界面先将交换机和队列进行绑定,然后再通过我们的程序进行发送,这样呢可以让我们的代码变得更加的简洁,不会有声明和绑定的过程;那么接下来我们通过代码的方式脱离这个web界面来绑定交换机和队列之间的关系:
+
+**注意**:如果消费者在监听的时候,如果消费一个不存在的队列那么就会发生异常,会报错的!还有生产者在发送消息的时候如果交换机不存在,那么此时就会发生异常!因为压根找不到就会抛出异常!必须要两种方式去解决:1.web图形化界面创建交换机或队列 2.通过代码程序去创建
+
+> 生产者
+
+```java
+package cn.miao.all;
+
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
+
+import java.nio.charset.StandardCharsets;
+
+/**
+ * @program: QuickStart-RabbitMQ
+ * @description: 生产者-完整的声明创建方式
+ * @author: MiaoWei
+ * @create: 2021-10-19 18:28
+ **/
+public class Producer {
+
+    public static void main(String[] args) {
+
+        //1: 创建连接工程
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        //2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        connectionFactory.setVirtualHost("/");
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            //3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            //4: 从连接中获取信道channel
+            channel = connection.createChannel();
+            //5: 准备消息发送的内容
+            String message = "我是完整的常见声明方式,一切都由我来创建";
+            //交换机,
+            String exchangeName = "direct-message-exchange";
+            // 6: 创建交换机
+            //因为交换机不存在,所以在这里会进行创建,这里单词Declare翻译为注册声明的意思
+            //第一个true:表示是否持久化,也就是当MQ服务重启后该交换机是否被移除,为true是持久化
+            channel.exchangeDeclare(exchangeName, "direct", true);
+
+            //7.创建队列
+            /*
+             *  如果队列不存在，则会创建
+             *  Rabbitmq不允许创建两个相同的队列名称，否则会报错。
+             *
+             *  @params1： queue 队列的名称
+             *  @params2： durable 队列是否持久化
+             *  @params3： exclusive 是否排他，即是否私有的，如果为true,会对当前队列加锁，其他的通道不能访问，并且连接自动关闭
+             *  @params4： autoDelete 是否自动删除，当最后一个消费者断开连接之后是否自动删除消息。
+             *  @params5： arguments 可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等,其实设置参数可以延伸出新的模式:Headers模式
+             * */
+            channel.queueDeclare("queue5", true, false, false, null);
+            channel.queueDeclare("queue6", true, false, false, null);
+            channel.queueDeclare("queue7", true, false, false, null);
+
+            //8: 绑定交换机和队列之间的关系
+            //第一个参数是队列,第二个参数是交换机名称,第三个参数是路由key,由于我们这里是direct模式所以需要指定一下路由key
+            channel.queueBind("queue5", exchangeName, "order");
+            channel.queueBind("queue6", exchangeName, "order");
+            channel.queueBind("queue7", exchangeName, "course");
+
+
+            /**
+             * 9: 发送消息给中间件rabbitmq-server
+             * @Params1 :交换机exchange
+             * @Params2 :队列名称/routingkey
+             * @Params3 :属性配置
+             * @Params4 :发送消息的内容
+             */
+            channel.basicPublish(exchangeName, "order", null, message.getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("消息发送成功!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            //7.关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+            //8.关闭连接
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+}
+```
+
+解释: 上述代码中我定义一个不存在的交换机和队列,就好比什么东西都是我来创建,然后我们来比较一下创建之前和之后的变化:
+
+之前的交换机:
+
+![image-20211024193826946](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024193826946.png)
+
+现在的交换机:
+
+![image-20211024193926051](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024193926051.png)
+
+然后我们点击这个交换机里面看看是否存在绑定了路由key和指定的队列:
+
+![image-20211024194000306](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024194000306.png)
+
+总结:也即是说我们可以通过代码的方式进行手动创建交换机和队列进行绑定这么个之间的关系!
+
+> 消费者
+
+```java
+public class Consumer {
+    private static final Runnable RUNNABLE = () -> {
+        // 1: 创建连接工厂
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        // 2: 设置连接属性
+        connectionFactory.setHost("127.0.0.1");
+        connectionFactory.setPort(5672);
+        connectionFactory.setVirtualHost("/");
+        connectionFactory.setUsername("admin");
+        connectionFactory.setPassword("admin");
+        //获取队列的名称
+        final String queueName = Thread.currentThread().getName();
+
+        Connection connection = null;
+        Channel channel = null;
+        try {
+            // 3: 从连接工厂中获取连接
+            connection = connectionFactory.newConnection("生产者");
+            // 4: 从连接中获取通道channel
+            channel = connection.createChannel();
+            // 5: 申明队列queue存储消息
+            /*
+             *  如果队列不存在，则会创建
+             *  Rabbitmq不允许创建两个相同的队列名称，否则会报错。
+             *
+             *  @params1： queue 队列的名称
+             *  @params2： durable 队列是否持久化
+             *  @params3： exclusive 是否排他，即是否私有的，如果为true,会对当前队列加锁，其他的通道不能访问，并且连接自动关闭
+             *  @params4： autoDelete 是否自动删除，当最后一个消费者断开连接之后是否自动删除消息。
+             *  @params5： arguments 可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等。
+             * */
+            // 这里如果queue已经被创建过一次了，可以不需要定义
+            //channel.queueDeclare("queue1", false, false, false, null);
+            // 6： 定义接受消息的回调
+            Channel finalChannel = channel;
+            //因为我已经在web界面将交换机和队列已经绑定了,所以就可以无需绑定队列!
+            finalChannel.basicConsume(queueName, true, new DeliverCallback() {
+                @Override
+                public void handle(String s, Delivery delivery) throws IOException {
+                    System.out.println(queueName + "：收到消息是：" + new String(delivery.getBody(), StandardCharsets.UTF_8));
+                }
+            }, new CancelCallback() {
+                @Override
+                public void handle(String s) throws IOException {
+                }
+            });
+            System.out.println(queueName + "：开始接受消息");
+            System.in.read();
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            System.out.println("发送消息出现异常...");
+        } finally {
+            // 7: 释放连接关闭通道
+            if (channel != null && channel.isOpen()) {
+                try {
+                    channel.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+            if (connection != null && connection.isOpen()) {
+                try {
+                    connection.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    };
+
+    public static void main(String[] args) {
+        // 启动三个线程去执行充当消费者去订阅消息监听
+        new Thread(RUNNABLE, "queue5").start();
+        new Thread(RUNNABLE, "queue6").start();
+        new Thread(RUNNABLE, "queue7").start();
+    }
+}
+```
+
+> 打印看效果:
+
+![image-20211024194214868](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211024194214868.png)
+
+总结:可以发现这里queue5和queue6已经收到消息了,可为什么queue7没收到呢,是因为我们在生产者发送消息的时候指定的路由key是order,也就是queue5和queue6所以说queue7没收到!
+
+> 总结:我们一般可以先通过web界面先将队列和交换机进行绑定,这样我们在代码界面就省略那些队列和交换机的代码,起到一个简洁的作用!还有我们消费者如果在启动过程中队列没有声明没有注册那么就会报异常的!而生产者中交换机如果不存在,那么也是会报出异常的,因为好比就是投递快递到驿站,而驿站不存在你怎么投?
+
+
+
+## 6.MQ使用场景
+
+### 6.1 解耦、削峰、异步
+
+
+
+### 6.2 高内聚、低耦合
+

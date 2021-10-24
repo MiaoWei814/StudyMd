@@ -2224,15 +2224,15 @@ springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mon
      redis:
        host: 127.0.0.1
        port: 6379
-       database: 0
+       database: 0					#  redis数据库索引（默认为0）
    # 如果要配置redis连接池,优先考虑lettuce连接池,因为通过源码发现jedis连接池许多类都是不生效的,而lettuce都是生效的,而官方也是推荐使用lettuce的!
    	password: 
        jedis:
          pool:
              max-active: 8
-             max-wait: -1ms
-             max-idle: 500
-             min-idle: 0
+             max-wait: -1ms 		# 连接池最大阻塞等待时间（使用负值表示没有限制）
+             max-idle: 500 		# 连接池中的最大空闲连接
+             min-idle: 0			# 连接池中的最小空闲连接
        lettuce:
              shutdown-timeout: 0ms
    ```
@@ -2345,6 +2345,7 @@ springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mon
    if (defaultSerializer == null) {
        //可以发现这是默认的序列化方式->是JDK序列!这样做就会让我们的字符串转义!我们可能会使用Json来序列化!
        //这种默认的缺点就是序列化的结果非常庞大,是JSON格式的5倍左右，这样就会消耗redis服务器的大量内存,并且在cmd客户端查看k-v时会出现"乱码",不方便查看!
+       //String 底层实现了Serializer接口所以不会乱码,而我们自定义对象如果不实现Serizlizer接口那么就会报异常!!!
        //之前做个测试,在Java里放一个String类型,key是String,value是一个对象toString,然后此时我们在redis客户端查看就是"乱码"了!所以我们需要更改默认的JDK序列化方式!
    	defaultSerializer = new JdkSerializationRedisSerializer(
    				classLoader != null ? classLoader : this.getClass().getClassLoader());
@@ -2381,7 +2382,7 @@ springBoot操作数据都是封装到Spring-Data里面,比如说JPA、jdbc、Mon
 
    ![image-20211015192312164](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211015192312164.png)
 
-   可以发现:这是没有序列化,没有实现序列化那么这里默认的JDK序列化是实现不了的!我们这个对象无法进行传输!没有实现序列化就会报错,所以我们所有的对象都需要进行序列化;
+   可以发现:这是没有序列化,没有实现序列化那么这里默认的JDK序列化是实现不了的!我们这个对象无法进行传输!没有实现序列化就会报错,所以我们所有的对象都需要进行序列化;也可理解为将对象存入内存中那么就要将对象转为二进制的过程,如果我们对象不实现Serializable接口那么在使用JDK序列化的时候就无法对其进行序列化,就无法转为二进制进行存储到内存中去!
 
 ### 7.4 自定义RedisTemplate
 
@@ -2485,6 +2486,7 @@ private RedisTemplate redisTemplate;
 
 ![image-20211015202658483](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211015202658483.png)
 
+
 然后我们去cmd客户端控制台看:
 
 ```bash
@@ -2493,6 +2495,55 @@ private RedisTemplate redisTemplate;
 ```
 
 说明:可以发现我们这里如果是使用JDK序列化的方式就会把这个String给转义为前面带有字符的!所以我们这里就被我们自定义的`stringRedisSerializer`给序列化了!这就是我们配置的好处!
+
+注意:我们一般会将其序列化为json字段,然后进行存储,然后获取的时候我们就会获取为字符串然后通过json转为一个对象用于我们进行操作!!!!
+
+> 存对象打印输出
+
+1. 我们直接使用对象进行存:
+
+   ```java
+   User user = new User("张三", 123);
+   redisTemplate.opsForValue().set("user", user); //直接存对象,我们已经使用自定义redisTemplate中jackon序列化了
+   Object user1 = redisTemplate.opsForValue().get("user");//这里获取后是一个Object,然后里面有一个toString方法被我们的对象进行重写
+   System.out.println(user1);
+   ```
+
+   输出:
+
+   ```java
+   User(name=张三, age=123)
+   ```
+
+   redis管理工具查看:
+
+   ```java
+   ["cn.miao.pojo.User",{"name":"张三","age":123}]
+   ```
+
+2. 使用对象进行序列化后进行保存:
+
+   ```java
+   User user = new User("张三", 123);
+   String jsonUser = new ObjectMapper().writeValueAsString(user);
+   redisTemplate.opsForValue().set("user", jsonUser);  //存入的是已经转为json后的字符串
+   Object user1 = redisTemplate.opsForValue().get("user"); //获取json,然后Object直接打印输出
+   System.out.println(user1);
+   ```
+
+   输出:
+
+   ```java
+   {"name":"张三","age":123}
+   ```
+
+   redis管理工具:
+
+   ```java
+   "{\"name\":\"张三\",\"age\":123}"
+   ```
+
+> 总结:所以我们一般存的话还是使用对象进行json化进行存储,那样我们方便存储然后获取的时候也能通过json工具进行转为对象类去接收!
 
 ### 7.5 RedisUtil
 

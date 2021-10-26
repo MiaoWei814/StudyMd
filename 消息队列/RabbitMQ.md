@@ -991,7 +991,7 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 ## 4.核心组成部分
 
-### 4.1 组成
+### 4.1 组成(面)
 
 ![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy62a1f9e3-027d-408a-8fb4-a176bd184d23.png)
 
@@ -2426,7 +2426,7 @@ finalChannel.basicConsume("queue1", false, new DeliverCallback() {
 1. 简单模式 Simple
     - 简单的一个生产者一个消费者中间一个队列,走的是默认的交换机,简单地将消息投递到交换机中,然后消费者监听收到即可!
 2. 工作模式 Work
-    - 工作模式分为轮询分发和公平分发,默认是轮询分发因为是自动应答,而公平分发必须要手动应答且设置qos,这个模式可以准确的说是一个分发机制,可以在任意的交换机类型上就可以!
+    - 工作模式分为轮询分发和公平分发,默认是轮询分发因为是自动应答,而公平分发必须要手动应答且设置qos,这个模式可以准确的说是一个分发机制,可以在任意的交换机类型上就可以使用!
     - 轮询分发:同一时间多个消费者监听队列,那么每个消费者收到的消息数量都是均衡的!
     - 公平分发:消费者处理得快的就多获取,处理得慢的就少获取,多劳多得!
 3. 发布订阅模式 fanout
@@ -2441,7 +2441,7 @@ finalChannel.basicConsume("queue1", false, new DeliverCallback() {
 
 注意:如果能用发布订阅模式就不要去用路由key模式,因为用路由key一定会有性能损耗,因为还要去过滤才能进行分发,而发布订阅模式就可以直接去分发!主题模式呢一般使用较少,看公司需求决定! 
 
-
+其实主要是fanout模式、direct模式、Topic模式。这是一层一层叠加的，最开始没有路由key到模糊路由key的概念，而简单模式其实就是fanout模式的简略版，而工作模式准确的说它不是一个模式，它是一种分发策略和机制，它可以在fanout或者direct上使用都是可以的！而参数headers模式用得较少！几乎不可见
 
 消息模式其实就是交换机的分发机制与策略,就是如何将消息分发到指定的队列中!而分发机制我们也可以解释为是一种多线程的分发机制!
 
@@ -2665,7 +2665,7 @@ public class Consumer {
 
 
 
-## 6.MQ使用场景
+## 6.MQ使用场景(面)
 
 在很多面试的场景中我们都会被问到一个点比如问你使用MQ的应用场景,redis的使用场景,如:"小明,你用MQ用在什么场景里面,你是怎么用的,为什么要用"。如果我们直接一上来就直接套概念那么一定会被认为是新手,认为你只是了解过但是并没有是实战过；那么接下来我们使用模板语句来套：
 
@@ -2826,4 +2826,604 @@ public void makeOrder(){
 
 
 
+
+## 7.SpringBoot整合
+
+因为SpringBoot跟MQ都是属于同一个母公司,也就是说天然对MQ的支持是比较完善的!
+
+导入整合MQ的依赖:
+
+```xml-dtd
+<!--把MQ的操作繁琐的机制进行封装-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-amqp</artifactId>
+</dependency>
+```
+
+然后我们可以看见:
+
+![image-20211026090503872](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211026090503872.png)
+
+可以看见我们的starter启动器里面就包含了spring对MQ的中间件,这里还第二行就是包括了AMQP本身的客户端的包,发现其本身整合也是用的我们之前Spring的依赖:
+
+这里我进行将Spring依赖也进行记录一下,以后说不定就可以用上:
+
+```xml-dtd
+<dependency>
+    <groupId>org.springframework.amqp</groupId>
+    <artifactId>spring-amqp</artifactId>
+    <version>2.2.5.RELEASE</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework.amqp</groupId>
+    <artifactId>spring-rabbit</artifactId>
+    <version>2.2.5.RELEASE</version>
+</dependency>
+```
+
+> 在yml中进行配置连接MQ
+
+```yaml
+# 服务端口
+server:
+  port: 8080
+
+# 配置rabbitMQ服务
+spring:
+  rabbitmq:
+    username: admin
+    password: admin
+    virtual-host: /
+    host: 127.0.0.1
+    port: 5672
+```
+
+指定一下配置MQ要清晰明了,因为其本身自动配置的时候就已经有默认值了,不信我们来点看对应的`RabbitProperties`看看:
+
+![image-20211026091800906](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211026091800906.png)
+
+> 我们再来看下我们的MQ核心:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudyb6899c5b-99c7-401b-9b6c-58bf72fe8734.png)
+
+### 7.1 fanout模式
+
+我们使用fanout模式来完成一个下订单的模拟,我们会绑定交换机和队列的关系,然后建立一个消费者也就是短信服务、邮件服务来监听队列,来完成用户下单来广播我们消息的能力!我们接下来就来体验一下RabbitMQ异步编程的机制以及高内聚、低耦合的特性:
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy61c5b87b-d787-4d62-9e7c-85e8f26b02f8.png)
+
+> 首先定义订单的生产者:
+
+首先是模拟下单的过程：
+
+```java
+package cn.miao.service;
+
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+/**
+ * @program: SpringBoot-MQ
+ * @description:
+ * @author: MiaoWei
+ * @create: 2021-10-26 09:25
+ **/
+@Component
+public class OrderService {
+
+    @Autowired
+    //这是SpringBoot整合好的模板,我们可以直接拿来使用!
+    private RabbitTemplate rabbitTemplate;
+
+    /**
+     * 模拟一个用户在我们平台上购买一个商品
+     *
+     * @param userId    用户id
+     * @param productId 产品id
+     * @param num       购买的数量
+     */
+    public void makeOrder(String userId, Long productId, int num) {
+        //1. 根据商品ID查询库存是否充足
+        //....
+
+        //2. 生成并保存订单
+        String orderId = UUID.randomUUID().toString();
+        System.out.println("订单生成成功: " + orderId);
+
+        //3. 通过MQ消息队列来完成消息的分发,用它的异步处理机制
+        //第一个参数: 交换机; 第二个参数:路由key/queue; 第三个参数: 消息内容
+        String exchangeName = "fanout_order_exchange";
+        String routingKey = "";
+        rabbitTemplate.convertAndSend(exchangeName, routingKey, orderId);
+    }
+}
+```
+
+然后我们配置RabbitMQ的队列和交换机之间的绑定关系:
+
+```java
+package cn.miao.config;
+
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * @program: SpringBoot-MQ
+ * @description:
+ * @author: MiaoWei
+ * @create: 2021-10-26 09:45
+ **/
+@Configuration
+public class RabbitmqConfig {
+//这里声明和绑定如果已经存在了,那么也不会进行报错!
+
+
+    //1.声明注册fanout模式的交换机
+    @Bean
+    public FanoutExchange fanoutExchange() {
+        //第一个参数:交换机名字 第二个参数:是否持久化 第三个参数:是否自动删除
+        return new FanoutExchange("fanout_order_exchange", true, false);
+    }
+
+    //2. 声明队列
+    @Bean
+    public Queue smsQueue() {
+        // durable:是否持久化,默认是false,持久化队列：会被存储在磁盘上，当消息代理重启时仍然存在，暂存队列：当前连接有效
+        // exclusive:默认也是false，只能被当前创建的连接使用，而且当连接关闭后队列即被删除。此参考优先级高于durable
+        // autoDelete:是否自动删除，当没有生产者或者消费者使用此队列，该队列会自动删除。
+        // return new Queue("TestDirectQueue",true,true,false);
+        // 一般设置一下队列的持久化就好,其余两个就是默认false
+
+
+        return new Queue("sms.fanout.queue", true);
+    }
+
+    @Bean
+    public Queue emailQueue() {
+        return new Queue("email.fanout.queue", true);
+    }
+
+    @Bean
+    public Queue duanxinQueue() {
+        return new Queue("duanxin.fanout.queue", true);
+    }
+
+    //3. 完成绑定关系(队列与交换机之间的绑定关系)
+    @Bean
+    public Binding smsBinding() {
+        //这里表示将sms队列绑定到我们的交换机上
+        return BindingBuilder.bind(smsQueue()).to(fanoutExchange());
+    }
+
+    @Bean
+    public Binding emailBinding() {
+        //因为我们使用的fanout模式的交换机,所以没有路由key,如果要使用路由key,那么在后面 .with(routingKey) 即可
+        return BindingBuilder.bind(emailQueue()).to(fanoutExchange());
+    }
+
+    @Bean
+    public Binding duanxinBinding() {
+
+        return BindingBuilder.bind(duanxinQueue()).to(fanoutExchange());
+    }
+}
+```
+
+此时我们在重新调用一下看看:
+
+```java
+package cn.miao;
+
+import cn.miao.service.OrderService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class SpringBootMqApplicationTests {
+
+    @Autowired
+    private OrderService orderService;
+
+    @Test
+    void contextLoads() {
+        orderService.makeOrder("1", 1L, 12);
+    }
+}
+```
+
+运行测试之后我们来看看图形化界面是不是成功了:
+
+![image-20211026102024752](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211026102024752.png)
+
+​	此时:我们已经完成了用户模拟下单成功后向MQ服务发起消息的过程,接下来我们来通过服务来监听来收到消息在做相关处理的问题:
+
+> 定义消费者
+
+1. 短信服务
+
+   ```java
+   package cn.miao.service.fanout;
+   
+   import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+   import org.springframework.amqp.rabbit.annotation.RabbitListener;
+   import org.springframework.stereotype.Component;
+   
+   /**
+    * @program: fanout-order-consumber
+    * @description:
+    * @author: MiaoWei
+    * @create: 2021-10-26 10:34
+    **/
+   @RabbitListener(queues = {"duanxin.fanout.queue"})
+   @Component //得把它注入Spring容器中去,不然监听不了
+   public class DuanxinConsumer {
+       /**
+        * 定义一个方法用于接收消息
+        * 首先我们通过@RabbitListener监听绑定队列,然后绑定以后通过@RabbitHandler注入到这个注解的方法上的参数中,用于获取消息服务
+        *
+        * @param message 消息
+        */
+       @RabbitHandler //表示这是消息的一个落脚点,@RabbitHandler 代表此方法是一个消息接收的方法
+       public void reviceMessage(String message) {
+            // 此处省略发短信的逻辑
+           System.out.println("duanxin fanout--接收到了订单信息是:-->" + message);
+       }
+   }
+   ```
+
+2. 邮件服务
+
+   ```java
+   package cn.miao.service.fanout;
+   
+   import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+   import org.springframework.amqp.rabbit.annotation.RabbitListener;
+   import org.springframework.stereotype.Component;
+   import org.springframework.stereotype.Service;
+   
+   /**
+    * @program: fanout-order-consumber
+    * @description:
+    * @author: MiaoWei
+    * @create: 2021-10-26 10:34
+    **/
+   @RabbitListener(queues = {"email.fanout.queue"})
+   @Component
+   public class EmailConsumer {
+       @RabbitHandler
+       public void reviceMessage(String message) {
+           System.out.println("email fanout--接收到了订单信息是:-->" + message);
+       }
+   }
+   ```
+
+3. sms服务
+
+   ```java
+   package cn.miao.service.fanout;
+   
+   import org.springframework.amqp.rabbit.annotation.RabbitHandler;
+   import org.springframework.amqp.rabbit.annotation.RabbitListener;
+   import org.springframework.stereotype.Component;
+   import org.springframework.stereotype.Service;
+   
+   /**
+    * @program: fanout-order-consumber
+    * @description:
+    * @author: MiaoWei
+    * @create: 2021-10-26 10:34
+    **/
+   @RabbitListener(queues = {"email.fanout.queue"})
+   @Component
+   public class EmailConsumer {
+       @RabbitHandler
+       public void reviceMessage(String message) {
+           System.out.println("email fanout--接收到了订单信息是:-->" + message);
+       }
+   }
+   ```
+
+启动测试,我们看看控制台:
+
+![image-20211026105552803](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211026105552803.png)
+
+结论:在这个的过程中,使用SpringBoot方式去使用MQ,使我们的代码变得更加的简洁与清爽,而这个跟我们之前使用原生的发送和接收消息本质是一样的;
+
+### 7.2 direct模式(面)
+
+direct模式相较比fanout只是多了路由key,所以在上面的基础上进行修改;
+
+**注意**:在实际开发过程,如果遇到一些场景能使用fanout模式就是用fanout,因为direct要使用路由key这就相当于是一个过滤的条件,势必会增加性能的损耗!
+
+**注意**:消费者在启动过程中如果监听不存在的队列,或者生产者投递不存在的交换机就会发生异常,就会告诉你不存在!那么如何解决呢?我们就可以将配置交换机和队列之间的关系的配置类进行复制,也就是说无论说生产者还是消费者无论谁先启动,那么都不会发生异常!
+
+**面试题**:在开发过程中,我们的绑定关系交换机的声明和队列的声明是绑定在生产者这边好点还是消费者那边好一点?
+
+​	其实这个问题的本身就有一定的歧义,其实无论呢定义在哪一边其实都是可以的当然两边都是OK的,甚至可以在web页面上进行手动的绑定关系,如果说我们用页面去配置那么在程序里配置就意义不大,所以最好我们还是定义在程序里因为后续可能通过一些方式扩展它的里面的一些信息,所以基于代码的方式是比较稳妥的!一般推荐两边都配置,但是最好的方式还是定义在消费者这边去定义最好的,因为在我们启动过程中我们消费者如果你的队列还没有去声明那么接下里肯定就会报错,既然要声明队列和交换机那么最好还是配置在消费者这边会更好一点,因为消费者是直接跟我们队列打交道的地方!还有消费者是最先启动的服务,如果队列不存在那么都会发生启动异常,
+
+定义生产者:
+
+```java
+package cn.miao.service;
+
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+/**
+ * @program: SpringBoot-MQ
+ * @description:
+ * @author: MiaoWei
+ * @create: 2021-10-26 09:25
+ **/
+@Component
+public class OrderService {
+
+    @Autowired
+    //这是SpringBoot整合好的模板,我们可以直接拿来使用!
+    private RabbitTemplate rabbitTemplate;
+
+    /**
+     * 模拟一个用户在我们平台上购买一个商品
+     *
+     * @param userId    用户id
+     * @param productId 产品id
+     * @param num       购买的数量
+     */
+    public void makeOrder(String userId, Long productId, int num) {
+        //1. 根据商品ID查询库存是否充足
+        //....
+
+        //2. 生成并保存订单
+        String orderId = UUID.randomUUID().toString();
+        System.out.println("订单生成成功: " + orderId);
+
+        //3. 通过MQ消息队列来完成消息的分发,用它的异步处理机制
+        //第一个参数: 交换机; 第二个参数:路由key/queue; 第三个参数: 消息内容
+        String exchangeName = "direct_order_exchange";
+        String routingKey = "order";
+        rabbitTemplate.convertAndSend(exchangeName, routingKey, orderId);
+    }
+}
+```
+
+定义配置队列和交换机:
+
+```java
+package cn.miao.config;
+
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.Queue;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * @program: SpringBoot-MQ
+ * @description:
+ * @author: MiaoWei
+ * @create: 2021-10-26 09:45
+ **/
+@Configuration
+public class RabbitmqConfig {
+//这里声明和绑定如果已经存在了,那么也不会进行报错!
+
+
+    //1.声明注册direct模式的交换机
+    @Bean
+    public DirectExchange directExchange() {
+        //第一个参数:交换机名字 第二个参数:是否持久化 第三个参数:是否自动删除
+        return new DirectExchange("direct_order_exchange", true, false);
+    }
+
+    //2. 声明队列
+    @Bean
+    public Queue smsQueue() {
+        // durable:是否持久化,默认是false,持久化队列：会被存储在磁盘上，当消息代理重启时仍然存在，暂存队列：当前连接有效
+        // exclusive:默认也是false，只能被当前创建的连接使用，而且当连接关闭后队列即被删除。此参考优先级高于durable
+        // autoDelete:是否自动删除，当没有生产者或者消费者使用此队列，该队列会自动删除。
+        // return new Queue("TestDirectQueue",true,true,false);
+        // 一般设置一下队列的持久化就好,其余两个就是默认false
+
+        return new Queue("sms.direct.queue", true);
+    }
+
+    @Bean
+    public Queue emailQueue() {
+        return new Queue("email.direct.queue", true);
+    }
+
+    @Bean
+    public Queue duanxinQueue() {
+        return new Queue("duanxin.direct.queue", true);
+    }
+
+    //3. 完成绑定关系(队列与交换机之间的绑定关系)
+    @Bean
+    public Binding smsBinding() {
+        //这里表示将sms队列绑定到我们的交换机上 这里with参数是Routing Key
+        return BindingBuilder.bind(smsQueue()).to(fanoutExchange()).with("order");
+    }
+
+    @Bean
+    public Binding emailBinding() {
+        return BindingBuilder.bind(emailQueue()).to(fanoutExchange()).with("order");
+    }
+
+    @Bean
+    public Binding duanxinBinding() {
+        return BindingBuilder.bind(duanxinQueue()).to(fanoutExchange()).with("course");
+    }
+}
+```
+
+> 定义消费者
+
+消费者呢跟之前也是一样的:
+
+```java
+//EmailConsumer:
+@RabbitListener(queues = {"email.direct.queue"})
+@Component
+public class EmailConsumer {
+    @RabbitHandler
+    public void reviceMessage(String message) {
+        System.out.println("email direct--接收到了订单信息是:-->" + message);
+    }
+}
+//SMSConsumer:
+@RabbitListener(queues = {"sms.direct.queue"})
+@Component
+public class SMSConsumer {
+    @RabbitHandler
+    public void reviceMessage(String message) {
+        System.out.println("sms direct--接收到了订单信息是:-->" + message);
+    }
+}
+//DuanxinConsumer
+@RabbitListener(queues = {"direct.fanout.queue"})
+@Component //得把它注入Spring容器中去,不然监听不了
+public class DuanxinConsumer {
+    /**
+     * 定义一个方法用于接收消息
+     * 首先我们通过@RabbitListener监听绑定队列,然后绑定以后通过@RabbitHandler注入到这个注解的方法上的参数中,用于获取消息服务
+     *
+     * @param message 消息
+     */
+    @RabbitHandler //表示这是消息的一个落脚点
+    public void reviceMessage(String message) {
+        System.out.println("duanxin direct--接收到了订单信息是:-->" + message);
+    }
+}
+```
+
+注:在消费者这边也可定义配置队列也是可以的!这样避免先启动消费者找不到队列而报错!
+
+效果呢跟fanout模式一模一样!这里就不展示了,相较于上面多了一个`with(routingKey)和修改了声明交换机的类型DirectExchange`,不过这也是声明交换机和队列的配置里面的!
+
+
+
+### 7.3 topic 模式
+
+之前我们都是通过配置类的方式来完成交换机和队列之间的绑定的关系,我们的SpringBoot也提供了一种注解的方式来完成队列和交换机之间的绑定的关系,接下来一起来看看:
+
+> 定义生产者
+
+1. 核心业务投递消息
+
+   ```java
+   @Component
+   public class OrderService {
+       @Autowired
+       private RabbitTemplate rabbitTemplate;
+       // 1: 定义交换机
+       private String exchangeName = "topic_order_exchange";
+       // 2: 路由key
+       private String routeKey = "";
+       public void makeOrder(Long userId, Long productId, int num) {
+           // 1： 模拟用户下单
+           String orderNumer = UUID.randomUUID().toString();
+           // 2: 根据商品id productId 去查询商品的库存
+           // int numstore = productSerivce.getProductNum(productId);
+           // 3:判断库存是否充足
+           // if(num >  numstore ){ return  "商品库存不足..."; }
+           // 4: 下单逻辑
+           // orderService.saveOrder(order);
+           // 5: 下单成功要扣减库存
+           // 6: 下单完成以后
+           System.out.println("用户 " + userId + ",订单编号是：" + orderNumer);
+           // 发送订单信息给RabbitMQ topic
+           rabbitTemplate.convertAndSend(exchangeName, routeKey, orderNumer);
+       }
+   }
+   ```
+
+注意:此时我们给topic交换机投递消息,但是此时我们没有topic交换机,需要我们进行配置声明和绑定队列,那么按照之前是使用的是配置类的方式那么接下来使用的是注解的形式,不过将其定义在消费者监听的时候
+
+> 定义消费者
+
+```java
+import org.springframework.amqp.core.ExchangeTypes;
+import org.springframework.amqp.rabbit.annotation.*;
+import org.springframework.stereotype.Component;
+// bindings其实就是用来完成队列和交换机绑定关系
+@RabbitListener(bindings =@QueueBinding(
+        // email.fanout.queue 是队列名字，
+        value = @Queue(value = "email.fanout.queue",autoDelete = "false",durable="true"),
+        // order.fanout 交换机的名字 必须和生产者保持一致
+        exchange = @Exchange(value = "fanout_order_exchange",
+                // 这里是确定的rabbitmq模式是：fanout 是以广播模式 、 发布订阅模式
+                type = ExchangeTypes.Topic),
+    	//设置路由key!
+    	key="#.email.#"
+))
+@Component
+public class EmailService {
+    // @RabbitHandler 代表此方法是一个消息接收的方法。该不要有返回值
+    @RabbitHandler
+    public void messagerevice(String message){
+        // 此处省略发邮件的逻辑
+        System.out.println("email-------------->" + message);
+```
+
+....
+
+这里我省略了其他服务,不过既然看到这个应该都是举一反三的那种!
+
+> 不过既然这样那就得先运行消费者,因为交换机不存在生产者启动就会报错!
+>
+> 无论是用注解还是配置类我们都可以去完成两者之间的绑定关系,两者选择其一即可!推荐使用配置类的方式,后面死信队列等等都是通过配置类的方式来完成,如果后面使用死信队列来跟注解搭配的话就会显得十分鸡肋;
+
+回想我们的sprintBoot的流程:
+
+1. 导入依赖
+
+2. 配置MQ服务,如地址
+
+3. 生产者将消息发送
+
+   ```java
+   rabbitTemplate.convertAndSend(exchangeName, routeKey, message);
+   ```
+
+4. 生产者可配置声明队列和交换机之间的关系-配置类使用
+
+   ```java
+   @Configuration
+   public class RabbitmqConfig {
+       //1. 声明交换机
+       //2. 声明队列
+       //3. 交换机和队列进行绑定
+   }
+   ```
+
+5. 消费者监听队列获取消息
+
+   ```java
+   @RabbitListener(queues = {"队列名"}) //监听哪个队列
+   @Component
+   public class EmailService {
+       @RabbitHandler //接收到消息用所在的方法中的参数来接收
+       public void messagerevice(String message){
+           //接收队列中的消息
+       }
+   }
+   ```
+
+6. 消费者可声明队列与交换机之间的关系
+
+   - 配置类的方式
+   - 注解的方式
 

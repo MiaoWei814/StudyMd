@@ -1150,3 +1150,336 @@ Zabbix是一个基于WEB界面提供分布式系统监视以及网络监视功�
 
 ## 5.分布式事务
 
+### 5.1 概述
+
+分布式事务指事务的操作位于不同的节点上,需要保证事务的ACID特性。
+
+![image-20211029181040786](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029181040786.png)
+
+例如：
+
+​	在下单的场景下，库存和订单如果不在同一个服务,有独立的JVM和数据库DB,现在我们想要变成一个整体那么就会涉及到数据的一致性,就好比这个我们需要完整的保存订单和库存的扣减保证整个闭环是正常的!理想状态下在保存订单的过程中库存服务发生了故障,那么就会让订单服务发生失败,让事务回滚!这就是事务的重要性了!而我们之前学习Spring提供了对数据库事务的支持,但是它们只能控制当前JVM自己级别范围的数据库,也就是说不能说这个JVM去控制另一个JVM,现在我们就需要来解决这个问题;	
+
+
+
+**理解**:分布式事务它是指在我们项目发展到一定阶段把系统拆分成若干个子服务,服务之间都有独立的数据库和独立的JVM空间,如何保证垮数据库级别的数据一致性,那么就是我们现在即将来看到的分布式事务的问题;而所谓的分布式事务就是指在不同的系统之间如何保证事务的完整性的一种解决方案;
+
+### 5.2 解决方案
+
+在分布式系统中要实现分布式事务,无外乎就这几种:
+
+#### 1. 2PC
+
+两阶段提交(Two-phase Commit,2PC),通过引入`协调者`(Conrdinator)来协调参与者的行为,并最终决定这些参与者是否要真正执行事务;
+
+**注**:两阶段提交(2PC)需要数据库厂商的支持,Java有组件atomikos等
+
+> 准备阶段
+
+协调者询问参与者事务是否正常执行成功,参与者发回事务执行结果
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy28c463a1-73a3-42a5-b498-265078248883.png)
+
+> 提交阶段
+
+如果事务在每个参与者上都执行成功,事务协调者发送通知让参与者提交事务,否则,协调者发送通知让参与者回滚事务。
+
+**注意**：在准备阶段参与者执行了事务但是还未提交，只有在提交阶段接收到协调者发来的通知后，才进行提交或回滚
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy1227423e-49da-4823-bab5-9a1530403086.png)
+
+**存在的问题**：
+
+1. 同步阻塞
+   - 所有事务参与者在等待其他参与者响应的时候都处于同步阻塞状态，无法进行其他操作；
+2. 单点问题
+   - 协调者在2PC中起到非常大的作用，但是如果发生故障那也会造成很大影响，特别是在第二阶段发生故障那么所有的参与者都会一直处于等待状态，无法完成其他操作；
+3. 数据不一致
+   - 在阶段二如果协调者只发送了部分Commit消息,此时网络发生异常,那么只有部分参与者接收到Commit消息,也就是说只有部分参与者提交了事务.使得系统数据不一致
+4. 太过保守
+   - 任意一个节点失败就会导致整个事务失败,没有完善的容错机制;
+
+#### 2. TCC
+
+TCC其实就是采用的补偿机制,其核心思想是:针对每个操作,都要注册一个与其对应的确认和补偿(撤销)操作,它分为三个阶段:
+
+- Try阶段主要是对业务系统做检测及资源预留
+- Confirm阶段主要是对业务系统做确认提交,Try阶段执行成功并开始执行Confirm阶段时,默认---Confirm阶段是不会出错的,即:只要Try成功,Confirm一定成功
+- Cancel阶段主要在业务执行错误,需要回滚的状态下执行的业务取消,预留资源释放
+
+```java
+举个例子:假如A向B转账,大概思路是:我们有一个本地方法,里面依次调用
+1. 首先在Try阶段,要先调用远程接口把A和B的钱给冻结起来;
+2. 在Confirm阶段,执行远程调用的转账的操作,转账成功进行解冻;
+3. 如果第2步执行成功,那么转账成功,如果第二步执行失败,则调用远程冻结接口对应的解冻方法(Cancel);
+```
+
+优点:
+
+- 根2PC比起来,实现以及流程相对简单了些,但数据的一致性必2PC也要差一些
+
+缺点:
+
+- 比较明显,在2,3步中都有可能失败,TCC属于应用层的一种补偿方式,所以需要程序员在实现的时候多写很多补偿的代码,在一些场景中,一些业务流程可能用TCC不太好定义及处理.
+
+> 其实就是对我们每一个连接信息进行注册,然后过程中出现事务回滚那么做补偿,但是相较必2PC实现要简单些但数据一致性要差!
+
+说明:其中这个机制有严选、阿里、蚂蚁金服;
+
+#### 3. 本地消息表(异步确保)
+
+如：支付宝、微信支付主动查询支付状态，对账单的形式
+
+**概念**：本地消息表与业务数据表处于同一个数据库中，这样有利于本地事务来保证在对这两个表的操作满足事务特性，并且使用了消息队列来保证最终一致性；
+
+- 在分布式事务操作的一方完成写业务数据的操作之后向本地消息表发送一个消息，本地事务能保证这个消息一定会写入本地消息表中；
+- 之后将本地消息表中的消息转发到Kafka等消息队列中,如果转发成功则将消息从本地消息表中删除,否则继续重新转发;
+- 在分布式事务操作的另一方从消息队列中读取一个消息,并执行消息中的操作;
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy316cc2e4-e23a-4874-a8a9-0ed14ba71989.png)
+
+优点:一种非常经典的实现,避免了分布式事务,实现了最终一致性
+
+缺点:消息表会耦合在业务系统中,如果没有封装好的解决方案会导致很多杂活需要处理。
+
+> 理解：是用一种对战的机制，我们把数据的结果先写到DB然后两个事务之间进行状态的修改，可以用Kafka或者MQ来完成它们之间异步的确保,来进行对比对战一下,就是每次执行完都会通知RabbitMQ或者Kafka来对数据的对战,这样会保证数据的正常性,而如果在写入的过程中出现异常,那么就会同时广播,如果没有发生问题就会把事务提交,但凡一边出现了问题那么接下来就会失败;
+
+#### 4. MQ事务消息
+
+有一些第三方的MQ是支持事务消息的,比如RocketMQ,他们支持事务的消息的方式也是类似于采用的二阶段提交,但是市面上一些主流的MQ都是不支持事务消息的,比如Kafka不支持.
+
+以阿里的RabbitMQ中间件为例,其思路大致为:
+
+- 第一阶段Prepared消息,会拿到消息的地址。第二阶段执行本地事务，第三阶段通过第一阶段拿到的地址去访问消息，并修改状态
+- 也就是说在业务方法内要想消息队列提交两次请求，一次发送消息和一次确认消息。如果确认消息发送失败了RabbitMQ会定期扫描消息集群中的事务消息,这时候发现了Prepared消息,它会向消息发送者确认,所以生产方需要实现一个check接口,RabbitMQ会根据发送端设置的策略来决定是回滚还是继续确认消息,这样就保证了消息发送与本地事务同时成功或同时失败。
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudye6732a40-44e5-491d-8e3d-7070fc943151.png)
+
+优点： 实现了最终一致性，不需要依赖本地数据库事务。
+
+缺点： 实现难度大，主流MQ不支持，RocketMQ事务消息部分代码也未开源。
+
+> 这种异步场景，通用性比较强，拓展性比较高
+
+
+
+### 5.3 具体实现
+
+这里以一个美团来作为基础的原型来进行分析：
+
+![img](https://gitee.com/miawei/pic-go-img/raw/master/imgs/kuangstudy29ccc5e9-db2b-40ae-ae33-385e15519226.png)
+
+**分析**：首先用户在APP交易平台上选购商品，选购完成以后会有一个配送平台，会把我们商品订单信息会配送到我们的物流系统，物流系统就会通知骑手进行一系列的到店取餐和送达客户手中。对于这种架构肯定就会用到分布式架构来进行开发，也就是说用户会在APP这一端下单接下来就会通知我们的配送平台，然后由通知中心通知骑手去取餐，那么这里的订单系统和配送中心肯定是两个独立的服务，服务与服务之间的传递肯定就会用到消息中间件完成，一旦用到消息中间件就会引发分布式事务的问题，也即是数据的最终一致性问题；
+
+> 系统与系统之间的分布式事务问题
+
+![image-20211029192323574](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029192323574.png)
+
+比如说小明在我们美团上下了一个订单点了一个外卖，然后就会把订单数据通过一些主流方式进行传输到配送中心，然后呢我们的订单就完成了一个流转；从这里可以看出这里订单服务和配送中心的数据库是不一致的是独立的数据库、独立的JVM、独立的服务体系。比如说我这里订单服务下名单那么有自己的订单数据库,而配送中心也会有自己独立的配送数据库,通过一些远程调用的方式来达到系统与系统之间的通讯以后,那么这里就会牵扯到两个数据库连接,连接过程中事务的管理只能控制自身的系统而无法去回滚我们的配送中心;主要是两者之间都有自己独立的事务,事务与事务之间是无法进行控制的;
+
+这里写一个DEMO:
+
+```java
+package com.xuexiangban.rabbitmq.service;
+import com.xuexiangban.rabbitmq.dao.OrderDataBaseService;
+import com.xuexiangban.rabbitmq.pojo.Order;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+@Service
+public class OrderService {
+    @Autowired
+    private OrderDataBaseService orderDataBaseService;
+    // 创建订单
+    @Transactional(rollbackFor = Exception.class) // 订单创建整个方法添加事务
+    public void createOrder(Order orderInfo) throws Exception {
+        // 1: 订单信息--插入丁订单系统，订单数据库事务
+        orderDataBaseService.saveOrder(orderInfo);
+        // 2：通過Http接口发送订单信息到运单系统
+        String result = dispatchHttpApi(orderInfo.getOrderId());
+        if(!"success".equals(result)) {
+            throw new Exception("订单创建失败,原因是运单接口调用失败!");
+        }
+    }
+    /**
+     *  模拟http请求接口发送，运单系统，将订单号传过去 springcloud
+     * @return
+     */
+    private String dispatchHttpApi(String orderId) {
+        SimpleClientHttpRequestFactory factory  = new SimpleClientHttpRequestFactory();
+        // 链接超时 > 3秒
+        factory.setConnectTimeout(3000);
+        // 处理超时 > 2秒
+        factory.setReadTimeout(2000);
+        // 发送http请求
+        String url = "http://localhost:9000/dispatch/order?orderId="+orderId;
+        RestTemplate restTemplate = new RestTemplate(factory);//异常
+        String result = restTemplate.getForObject(url, String.class);
+        return result;
+    }
+}
+```
+
+此时就会发现系统间调用过程中事务回滚问题,也就是所谓的分布式事务问题,一旦遇到异常那么无法保证两个数据库之间数据的一致性!因为A事务无法去控制B事务...
+
+并且可以看见这里使用的HTTP请求协议去调用接口来进行传输数据
+
+> 基于MQ的分布式事务整体设计思路
+
+![image-20211029195421230](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029195421230.png)
+
+可以发现订单服务与配送中心之间的数据我们可以用RabbitMQ的消息中间件进行可靠传输,我们会把消息服务丢给RabbitMQ,然后配送中心监听收到消息来完成数据的传递,但是还是不能解决分布式事务引发的数据的不一致问题!所以我们一系列的策略和手段再结合消息中间件一起来达成这件事情!
+
+> 在实际应用中分布式事务所解决的问题是一个永恒的话题,想要完美的达到事务的一致性还是很难的,所以一般都说"我保证我的订单不丢失成功率达到99%,但是永远不敢说100%"
+
+其实总的来说分布式事务其实就是指两个服务与服务之间事务都是独立的,而如何让这些数据库的事务之间达到最终一致性(ACID)都可以采用其他方式,比如MQ还是2PC还是TCC,只是消息队列在这方面比较完善和友好以及更加的高效;
+
+### 5.3 MQ解决方案
+
+#### 5.3.1 可靠生产:
+
+我们用消息队列的目的就是为了数据的最终一致性问题:就是我的数据跑到另一个服务中报错了,那么我的数据通过我的策略和机制会达到最终一致性的目的,那么可以通过这张图来进行解释:
+
+![image-20211029201205129](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029201205129.png)
+
+解释:首先我们的业务数据会往我们的生产者这边投递消息,然后就会把消息发送到交换机然后转发到队列中,而我们之前在业务数据投递的时候会有一个消息冗余字段之类的DB,因为可能消息中间件出现一些故障所以我们为了保证消息最终是一定投递到MQ的,会用到冗余机制,这个时候就会在本地数据库建立一个消息冗余表,说白了就是一个备机制,这个消息表不做任何事只用来存储跟订单信息一样,只是会去告诉消息服务是否会准确投递到消息队列中,会放一些状态用于判断你这消息是否确认收到了,那么就会给一个可靠回执,我们为了保证消息数据的不丢失正确的抵达,如果这个消息状态是0,那么进行重发机制,这种就可以防止MQ宕机网络故障而造成服务无法被写入的问题;然后就有一个定时器专门去判断你这个重发的次数,而一旦达到2次那么就说明这个消息有异常,而一旦有异常我们就把这个消息状态改为2,然后我们通过人工去解决排查;而说明有异常说明数据本身就是有问题,那么这就很好的排除一些问题了,很精准的定位到错误的问题; 这样很好的解决MQ宕机或者服务出现故障而数据的丢失,从而保证消息的可靠生产;
+
+
+
+不可靠生产问题:
+
+![image-20211029200851622](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029200851622.png)
+
+如果这个时候MQ服务器出现了异常和故障，那么消息是无法获取到回执信息。怎么解决呢？
+
+![image-20211029203108391](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029203108391.png)
+
+```
+解释:
+	用户下了一个订单然后发送消息,而这个消息可能会存在一个不可靠比如MQ可能出现宕机,我们为了保证数据一定会发生在MQ中,在同一个事务中会增加一个冗余表的来记录订单的信息和是否发送成功的状态,默认状态为0,如果发送成功以后那么就会利用MQ的确认机制来调用数据的回执修改,然后将状态标识为1,这个消息就是一个正常的消息,而如果这个MQ出现故障那么你的订单消息会进行一个冗余,我们会用一个定时器进行定时重发来保证这个闭环!也就是保证了一个可靠生产的问题;
+```
+
+#### 5.3.2 可靠消费(面)
+
+我们已经把基于MQ分布式事务可靠生产的问题已经解决了,可靠生产问题我们可以通过消息冗余的方式和定时任务的方式来处理和解决,利用的是MQ中提供的消息确认机制和发布与订阅机制来完成消息的可靠生产,其实可靠生产就是把消息投递到消息队列,消息队列就会给你一个回执,告诉你成功把消息成功投递到消息队列的过程!
+
+
+
+**概念**:可靠消费的问题就是在可靠生产的前提下你的消息能正常放到MQ中,而MQ则将消息投递到运单中心,而运单就开始一系列的操作:
+
+![image-20211029210022476](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211029210022476.png)
+
+面试题:"消费者在消息过程出现异常会发生什么情况":
+
+​	如果在运单中心的过程中国发生了故障异常,那么我们就会使用手动ACK机制,因为出现故障的话就会出现死循环,因为默认情况下消费者在消费消息的过程中出现了异常和故障,那么就会触发重发MQ中的重试机制,而这个重试机制就会引发死循环!然后磁盘和内存都会消耗殆尽,直到我们的程序宕机为止;
+
+解决消息重试的方案:
+
+1. 控制重发的次数
+2. try+catch+手动ACK
+3. try+catch+手动ACK+死信队列处理
+
+yaml配置:
+
+```yaml
+spring:
+	rabbitmq:
+		....
+		listener:
+        	simple:
+        		acknowledge-mode: manual #这里是开启手动ack，让程序去控制MQ的消息的重发和删除和转移
+        		retry:
+        			enabled: true # 开启重试
+        			max-attempts: 10 # 最大重试次数
+        			initial-interval: 2000ms # 重试间隔时间
+```
+
+```java
+//手动应答
+channel.basicNack(tag,false,true)
+```
+
+
+
+
+
+
+
+## 6. 消息确认机制的配置
+
+消息确认就是判断一个消息是否正常存储到消息队列的一个确认机制!
+
+首先yaml配置:
+
+```yaml
+# 服务端口
+server:
+  port: 8080
+# 配置rabbitmq服务
+spring:
+  rabbitmq:
+    username: admin
+    password: admin
+    virtual-host: /
+    host: 127.0.0.1
+    port: 5672
+    publisher-confirm-type: correlated
+```
+
+**注意**:
+
+1. none值是禁用发布确认模式，是默认值
+2. correlated值是发布消息成功到交换器后会触发回调方法
+3. SIMPLE值经测试有两种效果:
+   - 其一效果和correlated值一样会触发回调方法
+   - 其二在发布消息成功后使用rabbitTemplate调用waitForConfirms或waitForConfirmsOrDie方法等待broker节点返回发送结果，根据返回结果来判定下一步的逻辑，要注意的点是waitForConfirmsOrDie方法如果返回false则会关闭channel，则接下来无法发送消息到broker;
+
+实际DEMO:
+
+```java
+package com.xuexiangban.rabbitmq.springbootorderrabbitmqproducer.callback;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Component;
+/**
+ * @description:
+ * @author: xuke
+ * @time: 2021/3/5 23:25
+ */
+public class MessageConfirmCallback implements RabbitTemplate.ConfirmCallback {
+    @Override
+    public void confirm(CorrelationData correlationData, boolean ack, String cause) {
+        if(ack){
+            System.out.println("消息确认成功!!!!");
+        }else{
+            System.out.println("消息确认失败!!!!");
+        }
+    }
+}
+```
+
+```java
+/**
+     * @Author xuke
+     * @Description 模拟用户购买商品下单的业务
+     * @Date 22:26 2021/3/5
+     * @Param [userId, productId, num]
+     * @return void
+     **/
+    public void makeOrderTopic(String userId,String productId,int num){
+        // 1: 根据商品id查询库存是否充足
+        // 2: 保存订单
+        String orderId = UUID.randomUUID().toString();
+        System.out.println("保存订单成功：id是：" + orderId);
+        // 3: 发送消息
+        //com.#  duanxin
+        //#.email.* email
+        //#.sms.# sms
+        // 设置消息确认机制
+        rabbitTemplate.setConfirmCallback(new MessageConfirmCallback());
+        rabbitTemplate.convertAndSend("topic_order_ex","com.email.sms.xxx",orderId);
+    }
+```
+

@@ -257,7 +257,456 @@ data: 索引数据目录
 lib: 相关类库Jar包
 logs: 日志目录
 modules: 功能模块
-plugins: 插件
+plugins: 插件,比如我们后面使用的IK分词器
 ```
 
 **注意**:在jvm.options配置文件默认设置ES启动会给一个G的内存!要注意!!!
+
+> 认识一下elasticsearch.yml
+
+1. 集群配置
+
+```yaml
+# ---------------------------------- Cluster -----------------------------------
+#
+# Use a descriptive name for your cluster:
+#
+#cluster.name: my-application
+#
+# ------------------------------------ Node ------------------------------------
+#
+# Use a descriptive name for the node:
+#
+#node.name: node-1
+#
+# Add custom attributes to the node:
+#
+#node.attr.rack: r1
+#
+```
+
+2. 打印当前日志信息
+
+```yaml
+# ----------------------------------- Paths ------------------------------------
+#
+# Path to directory where to store the data (separate multiple locations by comma):
+#
+#path.data: /path/to/data
+#
+# Path to log files:
+#
+#path.logs: /path/to/logs
+#
+```
+
+3. 内存信息
+
+```yaml
+# ----------------------------------- Memory -----------------------------------
+#
+# Lock the memory on startup:
+#
+# bootstrap.memory_lock: true
+#
+# Make sure that the heap size is set to about half the memory available
+# on the system and that the owner of the process is allowed to use this
+# limit.
+#
+# Elasticsearch performs poorly when the system is swapping the memory.
+#
+```
+
+4. 网络配置
+
+```yaml
+# ---------------------------------- Network -----------------------------------
+#
+# Set the bind address to a specific IP (IPv4 or IPv6):
+#
+#network.host: 192.168.0.1
+#
+# Set a custom port for HTTP:
+#
+#http.port: 9200    这是端口号配置
+#
+# For more information, consult the network module documentation.
+#
+```
+
+> 启动
+
+双击ElasticSearch下的bin目录中的elasticsearch.bat启动，控制台显示的日志（等待启动完毕！）：
+
+![image-20211104152123046](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104152123046.png)
+
+记住:默认启动端口为9200,而9300表示是通信地址
+
+> 访问测试
+
+然后我们此时在页面上访问:http://localhost:9200
+
+![image-20211104152311702](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104152311702.png)
+
+出现这几个字样就表示启动成功了!
+
+**解释**:可以看出这是一个json结构,从图中可以看出:
+
+```json
+{
+  "name" : "DESKTOP-J0R2HIH",   //主机名
+  "cluster_name" : "elasticsearch", //es一个人也支持集群,所以默认的集群的名字就是elasticsearch
+  "cluster_uuid" : "ex0gxhrlR3-4xotwpJAAvQ", //一个人的集群的uuid
+  "version" : {
+    "number" : "7.6.1",		//当前的es的版本
+    "build_flavor" : "default",
+    "build_type" : "zip",
+    "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
+    "build_date" : "2020-02-29T00:15:25.529771Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.4.0",		//基于Lucene的版本 
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"  //这是一个标准语言,说:你知道的,为了搜索
+}
+```
+
+### 2.2 安装可视化界面
+
+可视化界面现在用的比较多的是用的是head的插件,而这个插件又依靠Node.js
+
+Head是elasticsearch的集群管理工具，可以用于数据的浏览查询！被托管在github上面
+
+地址:https://github.com/mobz/elasticsearch-head/
+
+**注意**:这是一个标准的前端项目,所以需要安装npm前端需要的依赖之类的!
+
+![image-20211104153557984](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104153557984.png)
+
+在head项目里找到package.json可以看见在scripts脚本里设置的名字是start,所以我们启动的话是`npm run start`
+
+将地址的项目进行克隆到本地以后进行安装依赖启动:
+
+```bash
+cnpm install
+npm run start
+```
+
+> 访问测试
+
+![image-20211104154454532](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104154454532.png)
+
+注意这里虽然启动了head,但是并没有跟我们的ES进行连接,原因为什么呢?
+
+![image-20211104154601445](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104154601445.png)
+
+也就是说这里发生了跨域问题,也就是我们这里从一个网站端口访问另一个端口这也就是两个服务之间的访问,这就已经达成了**跨域问题**!
+
+解决办法:
+
+在ES配置文件中找到elasticSearch.yaml然后打开:
+
+```yaml
+# 跨域配置：
+ http.cors.enabled: true    # 开启跨域
+ http.cors.allow-origin: "*" # 设置任何都访问
+```
+
+修改后我们再次访问测试:
+
+![image-20211104161001952](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104161001952.png)
+
+**注意**:修改配置文件记得将ES进行重启!
+
+> 认识一下Head界面
+
+1. 点击索引:
+
+   ![image-20211104163147223](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104163147223.png)
+
+   **我们可以把索引当做一个数据库!**可以建立索引(当做数据库),而在这里面我们要放一些文档(当做是库中的数据!)
+
+   注:其实还有一个表的概念,在ES中是type,但是在7.x版本已经将其淘汰了!而8.x就彻底淘汰了!
+
+   **踩坑**:这个时候可能会出现点击新建没反应,经过一顿排查,原来缺少安装依赖:
+
+   ```bash
+   # 安装head插件需要安装两个配置,es5以上就需要安装node和grunt
+   # 这里就不介绍node的安装.直接看grount的安装
+   npm install -g grunt-cli
+   ```
+
+   查看是否安装成功:
+
+   ![image-20211104165248382](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104165248382.png)
+
+   然后回到我们刚刚新建索引后,查看概览:
+
+   ![image-20211104165349426](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104165349426.png)
+
+   可以发现我们的索引是建立成功的,这里的1234是关于集群的分辨信息,后面用到再详细概述
+
+2. 点击数据概览:
+
+   ![image-20211104165547786](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104165547786.png)
+
+3. 点击复合查询:
+
+   ![image-20211104170305786](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104170305786.png)
+
+   记住:这个查询的JSON就是我们未来查询的格式!
+
+> 这个head插件我们就把它当做数据展示工具!
+
+**注意**:我们可以看见这里的JSON查询是没有格式化的!所以我们后面的查询我们用Kibana进行查询!
+
+我们再一次总览一下这个Head插件的所有信息:
+
+![image-20211104172215318](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104172215318.png)
+
+### 2.3 ELK介绍
+
+​	ELK是ElasticSearch、Logstash、Kibana三大开源框架首字母大写简称。市面上也被成为ElasticStack,其中`ElasticSearch是一个基于Lucene、分布式、通过RESTFul方式进行交互的近实时搜索平台框架`。
+
+​	类似百度、谷歌这种大数据全文搜索引擎的场景都可以使用ElasticSearch作为底层支持框架,可见ElasticSearch提供的搜索能力确实强大,市面上很多时候我们简称ElasticSearch为ES,其中`Logstash是ELK的中央数据流引擎`,用于从不同目标(文件/数据存储/MQ)收集的不同格式数据,经过过滤后支持输出到不同目的地(文件/MQ/redis/ElasticSearch/kafka等)。Kibana可以将ElasticSearch的数据通过友好的页面展示出来,提供实时分析的功能。
+
+​	市面上很多开发只要提到ELK能够一致说出它是一个**日志分析架构技术栈**总称，但实际上ELK不仅仅适用于日志分析，它还可以支持其他任何数据分析和收集的场景，日志分析和收集只是更具有代表性，并且唯一性！
+
+![image-20211104174933072](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104174933072.png)
+
+> 理解:ELk其中ES提供搜索能力,Logstash提供从不同地方收集不同格式数据然后过滤输出到不同目的地;而Kibaba将ES的数据进行展示出来并提供分析的功能!
+
+### 2.4 安装kibana
+
+**概念**:Kibana是一个针对ElasticSearch的开源分析及可视化平台,用来`搜索、查看交互存储`在ElasticSearch索引中的数据,使用Kibana可以通过各种`图表进行高级数据分析及展示`,Kibana让海量数据更容易理解。它操作简单，基于浏览器的用户界面可以快速创建仪表板（dshboard）实时显示ElasticSearch查询动态，而设置Kibana非常简单，无需编码或者额外的基础架构几分钟内就可以完成Kibana安装并启动ElasticSearch索引监测。
+
+官网:https://www.elastic.co/cn/kibana/
+
+如:
+
+![image-20211104183350622](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104183350622.png)
+
+这是下载地址:https://www.elastic.co/cn/downloads/kibana
+
+注:下载的时候要注意版本对应关系!也就是ES的版本和这里下载的版本要注意对应!而我们现在ES的版本是7.6.1
+
+下载好以后解压到本地,注意文件夹比较大解压比较慢,因为这是一个标准的工程!
+
+> 解压后的目录结构:
+
+![image-20211104185007419](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104185007419.png)
+
+> 启动测试
+
+点击bin目录下的`kibana.bat`
+
+![image-20211104185454994](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104185454994.png)
+
+当然这里启动也是比较慢的,这是正常的!
+
+然后访问IP:5601，kibana会自动去访问9200，也就是elasticsearch的端口号（当然elasticsearch这个时候必须启动着），然后就可以使用kibana了！
+
+![image-20211104185618975](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104185618975.png)
+
+> 这是都是英文的,所以我们进行汉化修改一下
+
+我们在Kibana文件夹内发现i18n明显这是一个国际化文件,所以我们找到它的国际化配置;
+
+中文包在**kibana\x-pack\plugins\translations\translations\zh-CN.json**
+
+而我们只需要在配置文件`kibana.yml `中加入:
+
+```yaml
+i18n.locale: "zh-CN"
+```
+
+![image-20211104190104949](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104190104949.png)
+
+![image-20211104190115854](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104190115854.png)
+
+> 重启走一波
+
+![image-20211104190259122](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104190259122.png)
+
+可以发现已经正常的切换过来了!这样我们在使用的过程中也不用受到英文的困扰!
+
+
+
+## 3.ES核心概念
+
+在之前的学习过程中,我们已经知道一些概念和安装ES的过程!那么是否知道ES是如何去存储数据?数据结构又是什么?又是如何实现搜索?
+
+这是提几个关键词，先有个印象：**集群、节点、索引、类型、文档、分片、映射**
+
+> ES是面向文档
+
+关系型数据库和elasticSearch客观的对比!
+
+|  Relational DB   | Elasticsearch |
+| :--------------: | :-----------: |
+| 数据库(database) | 索引(indices) |
+|    表(tables)    |     types     |
+|     行(rows)     |   documents   |
+|   列(columns)    |    fields     |
+
+**理解**：首先我们创建一个数据库那么对应ES的就是叫索引，当然我们还是可以将索引当成数据库一样！然后数据库中创建一个表在es中对应的叫types，不过这个已经慢慢的被弃用了，7.x版本已经过时了8.x版本直接弃用了!行对应MYSQL中的具体的一行数据,对应ES中叫documents文档;当创建好文档以后里面就有具体的字段和规则,比如字段叫age或者name,那么对应ES中的fields
+
+**注意**:在使用ES的过程中一切皆JSON,创建数据库等等都是使用JSON来做!
+
+**流程**:elasticsearch(集群)中可以包含多个索引(数据库),每个索引中可以包含多个类型(表),每个类型下又包含多个文档(行),每个文档中又包含多个字段(列)
+
+
+
+**物理设计**:
+
+- es在后台把每个`索引划分成多个分片`,每个分片可以在集群中的不同服务器间迁移
+
+- 一个人也是一个集群!默认的集群名称就是elasticSearch,所以说它不存在单个的,一开启就是被分片了,只是说你搭建了一个而已!什么叫分布式?启动就是集群!
+
+  ![image-20211104193330119](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104193330119.png)
+
+**逻辑设计**:
+
+- 一个索引类型中,包含多个文档,比如说文档1,文档2。当我们索引一篇文章的时候可以通过这样的一个顺序找到它：**索引》类型》文档ID**，通过这个组合我们就能快速索引到某个具体的文档
+- 注意：ID不必是整数，而实际上它是个字符串！
+
+### 3.1 各节点介绍(面)
+
+> 文档
+
+我们知道ElasticSearch是面向文档的,那么也就意味着`索引和搜索数据的最小单位是文档`!
+
+而elasticsearch中文档有几个重要属性:
+
+- **自我包含**:一篇文档同时包含字段和对应的值,也就是同时包含 key:value!
+- **可以是层次性的**:一个文档中包含自文档,那么复杂的逻辑实体就是这么来的!
+- **灵活的结构**:文档不依赖预先定义的模式,我们知道关系型数据库中要提前定义字段才能使用,而在es中对于字段是非常灵活的,有时候我们可以忽略该字段或者动态的添加一个新的字段
+
+尽管我们可以随意的新增或者忽略某个字段,但是每个字段的类型非常重要,比如一个年龄字段类型可以是字符也可以是整型。因为es会保存字段和类型之间的映射及其他的设置。这种映射具体到每个映射的每种类型，这也是为什么在es中类型有时候也称为映射类型！
+
+```
+理解:就是我们的一条条数据,就好比是MySQL中的一行一条数据
+例如:
+	user表
+1	zhangsan 18
+2	miaowei	 3
+说白了以后我们存文档就是存入一条记录进去们,比如1号用户、2号用户等等；
+```
+
+
+
+> 类型
+
+类型是文档的逻辑容器，就像关系型数据库一样表格是行的容器。类型中对于字段的定义称为映射，比如新增一个字段，那么es是怎么做的呢？es会自动的将新字段加入映射，但是这个字段的不确定它是什么类型，es就开会猜？如果这个值是18，那么es会认为它是整型。但是es也有可能猜不对，所以最安全的方式就是提前定义所需要的映射，这点跟关系型数据库殊途同归了：先定义好字段，然后再使用！
+
+```
+理解:这个很少使用了,比如说在Java中name字段类型为String类型而在es中就为text类型;
+总之的意思就是说每一个字段都会有一个类型映射,而这个映射就是我们的基本类型,这个时候我们可以不设置它,它会自动去猜,当然我们也可以直接去设置
+```
+
+![image-20211104203634555](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104203634555.png)
+
+> 索引
+
+索引是映射类型的容器，es中的索引是一个非常大的`文档集合`。索引存储了映射类型的字段和其他设置。然后它们被存储到了各个分片上了，
+
+```
+理解:索引就是数据库,它是根本只有建立索引你才会文档等等这一些东西,
+```
+
+**物理设计：节点和分片 如何工作**
+
+​	一个集群至少有一个节点，而一个节点就是一个elasticsearch进程，节点可以有多个索引默认的，如果你创建索引，那么索引将会有5个分片（primary shard,又称主分片）构成的,每一个主分片会有一个副本(replica shard,又称复制分片)
+
+![image-20211104204152173](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104204152173.png)
+
+```
+理解:说白了我们存的东西它不止一个地方可以存,我们可以通过分片把他搭在不同的集群上!
+```
+
+![image-20211104195908940](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104195908940.png)
+
+上图是一个有3节点的集群,可以看到主分片和对应的复制分片都不会在同一个节点内(p开头的是主分片,r开头的是复制分片),这样有利于某个节点挂掉了,数据也至于丢失。实际上：**一个分片是一个lucene索引,**一个包含倒排索引的文件目录,倒排索引的结构使得es在不扫描全部文档的情况下,就能告诉你哪些文档包含特定的关键字;
+
+> 倒排索引(面)
+
+es使用的是一种称为倒排索引的结构,**采用lucene倒排索引作为底层**。这种结构适用 于快速的全文搜索，一个索引由文档中所有不重复的列表构成，对于每一个词，都有一个包含它的文档列表。
+
+例如：现在有两个文档，每个文档包含以下内容：
+
+```yaml
+Study every day,good good up to forever # 文档1包含的内容
+To forever,study every day, good good up # 文档2包含的内容
+```
+
+为了创建倒排索引,我们首先要将每个文档拆分成独立的词(或称之为词条或者tokens),然后创建一个包含所有不重复的词条的排序列表,然后列出每个词条出现在哪个文档:
+
+|  term   | doc_1 | doc_2 |
+| :-----: | :---: | :---: |
+|  Study  |   √   |   X   |
+|   To    |   X   |   X   |
+|  every  |   √   |   √   |
+| forever |   √   |   √   |
+|   day   |   √   |   √   |
+|  study  |   X   |   √   |
+|  good   |   √   |   √   |
+|  every  |   √   |   √   |
+|   to    |   √   |   X   |
+|   up    |   √   |   √   |
+
+现在，我们试图搜索"to forever"，只需要查看包含每个词条的文档
+
+|  term   | doc_1 | doc_2 |
+| :-----: | :---: | :---: |
+|   to    |   √   |   X   |
+| forever |   √   |   √   |
+|  total  |   2   |   1   |
+
+两个文档都匹配,但是第一个文档比第二个匹配程度更高。如果没有别的条件，现在这两个包含关键字的文档都将返回。第一个因为匹配率更高所以权重更高而后面那个权重就较低
+
+再来看一个示例：比如我们通过博客标签来搜索博客文章，那么倒排索引列表就是这样的一个结构：
+
+![image-20211104201358404](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104201358404.png)
+
+如果要搜索含有python标签的文章,那相对于查找所有原始数据而言,查找倒排索引后的数据将会快得多。只需要查看标签这一栏，然后获取相关的文章ID即可！
+
+> es的索引和lucene的索引对比
+
+​	在es中索引(数据库)这个词被频繁使用->这就是术语的使用。在es中索引被分为多个分片，每份分片是一个lucene的索引。`所以一个es的索引(数据库)是由多个Lucene索引组成的`。别问为什么，谁让es使用lucene作为底层呢!如无特指:说起索引都是指es的索引。
+
+接下来的一切操作都在kibana中的Dev Tools下的Console里完成基础操作!
+
+```
+理解:所以说倒排索引的效率是非常高的,它的底层是有Lucene倒排索引作为底层构建;它会将文档中所有不重复的词进行放入列表,然后通过输入关键词然后判断哪个列表包含了它.然后快速的计算出包含关键字的文档所在的列表的匹配程度与权重,而如果不存在关键词的文档是不会出现在倒排索引中的,因为完全过滤掉了无关的所有数据来提高效率;
+
+每个索引要被分片,默认是5个分片,而每个分片说白了就是一个个倒排索引,那么这里也就是至少说有5个lucene的索引;
+所以说Elasticsearch本身底层就是封装了Lucene,它只是利用了Lucene的功能进行了聚合;	
+```
+
+## 4.IK分词器插件
+
+**分词**:即把一段中文或者别的划分成一个个的关键字;
+
+**引入之前的问题**:我们在搜索时候会把自己的信息进行分词,会把数据库中或者索引库中的数据进行分词,然后进行一个匹配操作,默认的中文分词是将每个字看成一个词,比如说"我爱祖国"就会被分为"我","爱","祖","国",这显然是不符合要求的,所以我们需要安装中文分词器ik来解决这个问题;
+
+**内容**:IK提供了两个分词算法:ik_smart和ik_max_word,其中`ik_smart为最少切分`,`ik_max_word为最细粒度划分`!
+
+> 安装
+
+官网地址:https://github.com/medcl/elasticsearch-analysis-ik/
+
+版本还是要一一对应,我这里es的版本是7.6.1
+
+下载后解压到ElasticSearch根目录下的plugins目录中:
+
+![image-20211104211914797](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104211914797.png)
+
+重新启动 ElasticSearch 服务，在启动过程中，你可以看到正在加载"analysis-ik"插件的提示信息;
+
+![image-20211104212428507](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104212428507.png)
+
+服务启动后，在命令行运行 elasticsearch-plugin list 命令，确认 ik 插件安装成功
+
+![image-20211104212546892](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104212546892.png)
+

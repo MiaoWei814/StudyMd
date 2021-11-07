@@ -686,9 +686,11 @@ To forever,study every day, good good up # 文档2包含的内容
 
 ## 4.IK分词器插件
 
+### 4.1 安装
+
 **分词**:即把一段中文或者别的划分成一个个的关键字;
 
-**引入之前的问题**:我们在搜索时候会把自己的信息进行分词,会把数据库中或者索引库中的数据进行分词,然后进行一个匹配操作,默认的中文分词是将每个字看成一个词,比如说"我爱祖国"就会被分为"我","爱","祖","国",这显然是不符合要求的,所以我们需要安装中文分词器ik来解决这个问题;
+**引入之前的问题**:我们在搜索时候会把自己的信息进行分词,会把数据库中或者索引库中的数据进行分词,然后进行一个匹配操作,**默认的中文分词是将每个字看成一个词**,比如说"我爱祖国"就会被分为"我","爱","祖","国",这显然是不符合要求的,所以我们需要安装**中文分词器ik**来解决这个问题;
 
 **内容**:IK提供了两个分词算法:ik_smart和ik_max_word,其中`ik_smart为最少切分`,`ik_max_word为最细粒度划分`!
 
@@ -702,11 +704,391 @@ To forever,study every day, good good up # 文档2包含的内容
 
 ![image-20211104211914797](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104211914797.png)
 
-重新启动 ElasticSearch 服务，在启动过程中，你可以看到正在加载"analysis-ik"插件的提示信息;
+重新启动 ElasticSearch 服务，在启动过程中，你可以在日志里看到正在加载"analysis-ik"插件的提示信息;
 
 ![image-20211104212428507](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104212428507.png)
 
-服务启动后，在命令行运行 elasticsearch-plugin list 命令，确认 ik 插件安装成功
+服务启动后，在bin目录下在命令行运行`elasticsearch-plugin list` 命令来查看加载进来的插件，确认 ik 插件安装成功,注意
 
 ![image-20211104212546892](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211104212546892.png)
+
+### 4.2 测试
+
+使用kibana进行测试:
+
+**注**:因为es提供RESTFul风格的接口所以测试用postman也可以,但是不推荐,因为专业的东西就要用专业的工具,各司其职!
+
+1. 找到界面:
+
+   ![image-20211107121815476](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107121815476.png)
+
+2. 输入关于**ik_smart:最少切分**请求信息:
+
+   切最少的
+
+   ```elm
+   GET _analyze   // get 请求类型, _analyze分词器
+   // 中间就是具体的分词要求,
+   {
+     "analyzer": "ik_smart",	//选择哪个分词算法
+     "text": "中国共产党"		//具体的分词文本
+   }
+   ```
+
+   看具体的效果:
+
+   ![image-20211107123201033](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107123201033.png)
+
+
+
+​	再做点测试:
+
+​	**理解**:将一段文本切分为一个个关键字,进行最少的切分,一旦切分为一个关键字以后就不会参与后面的切分了![image-20211107124208662](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107124208662.png)
+
+2. 输入关于**ik_max_word:最小粒度切分**请求信息:
+
+   穷尽词库的可能!
+
+   ```elm
+   GET _analyze
+   {
+     "analyzer": "ik_max_word",	//选择最小粒度划分
+     "text": "中国共产党"
+   }
+   ```
+
+   看效果:
+
+   ![image-20211107123303022](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107123303022.png)
+
+   最细粒度划分:就会把除了当前的组合拆开外就会把它所有可能的组合都拆开!
+
+   再做点测试:
+
+   **理解**:最小细粒度划分则是将整个文本进行存在可能的组合进行划分,注意:是细粒度的穷尽将整个文本组合进行划分!
+
+   ![image-20211107124441478](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107124441478.png)
+
+### 4.3 自定义关键字
+
+先看一下:
+
+![image-20211107145220577](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107145220577.png)
+
+可以发现分词器认为这是两个词将其拆分开了,但是我认为这是个关键字不允许拆开,那么该如何处理呢?
+
+找到es目录下的plugins中的ik所在的配置文件里,找到配置文件`IKAnalyer.cfg.xml`,我们将其打开:
+
+![image-20211107145407023](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107145407023.png)
+
+打开后就是这样:
+
+![image-20211107145527564](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107145527564.png)
+
+发现这里就是配置ik分词器的词典的位置,同时我们在外面可以发现有很多后缀为`.dic`的文件,我们随便点开看看:
+
+![image-20211107145850543](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107145850543.png)
+
+我们可以得出这就是ik分词器根据这些dic配置文件中的关键词进行分词,当然这点词典肯定是远远不够的;
+
+> 我们配置属于自己的词典
+
+1. 新建配置文件`miaowei.dic`,内容为:
+
+   ```tex
+   我爱缪威
+   ```
+
+2. 添加到配置文件:
+
+   ![image-20211107150338101](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107150338101.png)
+
+   **解释**:编写我们自己的配置文件然后注入到这里的扩展配置中即可,编写了我们自己的词典那么后续ik分词的时候就会首先查找我们的词典是否包含关键词,包含关键词符合条件那么就不会拆分了;
+
+3. 重启ES,因为需要es重新加载插件!
+
+   ![image-20211107150908952](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107150908952.png)
+
+   可以发现这里已经开始加载我们自己的词典了!
+
+4. 我们再次启动kibana进行测试
+
+   ![image-20211107151156953](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107151156953.png)
+
+   可以发现这里拆分的时候,由于我们设置了自定义词典所以这里就会默认认为`我爱缪威`就是一个关键字!是不允许拆分的!
+
+   > 所以以后我们需要什么关键字就直接添加即可!
+
+## 5.Rest风格说明
+
+首先RESTFul是一种**软件架构风格**,而不是标准,它只是提供了一组**设计原则和约束条件**。它主要用于客户端和服务器交互类的软件，基于这个风格可以更简洁、更有层次、更易于实现缓存等机制。
+
+基本的RESTFul命令说明:
+
+| method |                     url地址                     |          描述          |
+| :----: | :---------------------------------------------: | :--------------------: |
+|  PUT   |     localhost:9200/索引名称/类型名称/文档id     | 创建文档（指定文档id） |
+|  POST  |        localhost:9200/索引名称/类型名称         | 创建文档（随机文档id） |
+|  POST  | localhost:9200/索引名称/类型名称/文档id/_update |        修改文档        |
+|  POST  |    localhost:9200/索引名称/类型名称/_search     |      查询所有数据      |
+| DELETE |     localhost:9200/索引名称/类型名称/文档id     |        删除文档        |
+|  GET   |     localhost:9200/索引名称/类型名称/文档id     |   查询文档通过文档id   |
+
+### 5.1 关于索引的基本操作
+
+首先我们同时启动ES、kibana、head
+
+1. 创建一个索引!
+
+   在kibana的console中执行命令：
+
+   ```elm
+   // PUT命令  test1:索引名称 type1:类型名称 1:文档id
+   PUT test1/type1/1    
+   {
+     "name":"缪威",  //属性
+     "age":3		//属性
+   }
+   理解:这里相当于创建了数据库为test1,然后在库中创建了表为type1,然后插入了一行数据`name`为"缪威",`age`为"3"然后这一行的id为1  
+   {...} 中间部分为请求体
+   ```
+
+   返回:
+
+   ```elm
+   #! Deprecation: [types removal] Specifying types in document index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, or /{index}/_create/{id}).
+   //翻译:	# !Deprecation:[移除类型]在文档索引请求中指定类型已被弃用，请改为使用无类型端点(/{index}/_doc/{id}， /{index}/_doc，或/{index}/_create/{id})。
+   
+   
+   {
+     "_index" : "test1",		//索引名称(数据库)
+     "_type" : "type1",		//类型名称(表)
+     "_id" : "1",				//文档id(行数据)
+     "_version" : 1,			//当前这条数据没有被更新过
+     "result" : "created",		//当前处于created创建状态
+     "_shards" : {				//分片信息
+       "total" : 2,
+       "successful" : 1,
+       "failed" : 0
+     },
+     "_seq_no" : 0,
+     "_primary_term" : 1
+   }
+   ```
+
+   我们在head插件中查看索引数据:
+
+   ![image-20211107154910808](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107154910808.png)
+
+   由此可以看见已经完成了自动创建索引!数据也成功的添加了;
+
+2. 那么 name 这个字段用不用指定类型呢。毕竟我们关系型数据库 是需要指定类型的啊 !
+
+   字符串类型
+   [text](https://www.elastic.co/guide/en/elasticsearch/reference/current/text.html) 、 [keyword](https://www.elastic.co/guide/en/elasticsearch/reference/current/keyword.html)
+   数值类型
+   [long](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [integer](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [short](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [byte](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [double](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [float](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [half_float](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html), [scaled_float](https://www.elastic.co/guide/en/elasticsearch/reference/current/number.html)
+   日期类型
+   [date](https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html)
+   te布尔值类型
+   [boolean](https://www.elastic.co/guide/en/elasticsearch/reference/current/boolean.html)
+   二进制类型
+   [binary](https://www.elastic.co/guide/en/elasticsearch/reference/current/binary.html)
+   等等......
+
+3. 指定字段类型:
+
+   ```elm
+   //上面的那个是加数据,这里没有加文档只是创建规则
+   // 创建索引test2
+   PUT /test2
+   {
+   	"mappings":{	//所有的规则都是用mappings来设置,mappings表示映射规则
+   		"properties":{		//属性设置
+   			"name":{		//具体的属性名
+   				"type":"text"		//type关键字 "text"基本数据类型-字符串
+   			},
+   			"age":{			//属性名称
+   				"type:"long"		//type关键字 "long"基本数据类型-数值
+   			},
+   			"birthday":{	//属性名称
+   				"type":"date"		//指定类型为日期类型
+   			}
+   		}
+   	}
+   }
+   ```
+
+4. 执行并查看索引
+
+   ![image-20211107161106602](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107161106602.png)
+
+   ![image-20211107160944530](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107160944530.png)
+
+   我们这是创建了索引及其字段,但是我们并没有加入数据,所以这里是没有的!
+
+> 我们已经了解过Put命令的使用,那么我们来使用Get命令使用方式
+
+1. 获取索引信息
+
+   ![image-20211107161425551](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107161425551.png)
+
+**注意**:GET后面如果指定索引那么就会获取索引的信息,如果指定文档的id那么就会获取文档的信息,就是你指定到谁就是获取谁的信息
+
+2. 查看默认的信息
+
+   ![image-20211107162616946](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107162616946.png)
+
+   注意:在后面就不会指定类型了,默认就是`_doc`类型的
+
+   查看信息(`这里text类型它会默认加上一个关键字类型,也就是不可分割类型的!`):
+
+   ![image-20211107163030814](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107163030814.png)
+
+**如果自己的文档字段没有指定,那么es就会给我们默认配置字段类型!**
+
+对比关系型数据库 ：
+
+`PUT test1/type1/1 `： 索引test1相当于关系型数据库的库，类型type1就相当于表 ，1 代表数据中的主键 id
+**这里需要补充的是**:在elastisearch5版本前，一个索引下可以创建多个类型，但是在elastisearch5后，一个索引只能对应一个类型;如果已经指定了类型然而由指定新的类型那么就会报错:
+
+![image-20211107165850651](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107165850651.png)
+
+所以后面慢慢会启用type类型,默认使用_doc,默认使用`_doc`可以指定多个索引
+
+- id相当于关系型数据库的主键id若果不指定就会默认生成一个20位的uuid，属性相当关系型数据库的column(列)。
+- 结果中的 result 则是操作类型，现在是 created ，表示第一次创建。如果再次点击执行该命令那么result 则会是 updated ，我们细心则会发现 _version 开始是1，现在你每点击一次就会增加一次。表示第几次更改。
+
+> 扩展:通过命令elasticsearch索引情况:
+
+1. `GET _cat/health`
+
+   效果:
+
+   ```basic
+   # 获取数据库的健康值,其中yellow表示健康值为黄色
+   1636274388 08:39:48 elasticsearch yellow 1 1 6 6 0 0 3 0 - 66.7%
+   ```
+
+   就是这个:
+
+   ![image-20211107164210947](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107164210947.png)
+
+2. `GET _cat/indices?v`
+
+   效果:
+
+   ![image-20211107164601019](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107164601019.png)
+
+   我们可以通过这个命令来查看我们es相关的信息,比如我们可以看见health健康值,index为索引,docs.count为文档的数量
+
+> 总的来说就是可以通过 **GET _cat/**命令来看一些es的默认的配置信息!
+
+其实这个head可视化界面就是在不停的发起请求然后展示在我们页面上,所以可以说它的底层就是一个工具集!
+
+![image-20211107164331445](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107164331445.png)
+
+
+
+> 修改索引,提交还是使用PUT即可!然后覆盖!
+
+1. 之前的办法:
+
+   所谓的修改也就是在第一次的基础上进行覆盖!
+
+   ![image-20211107172343594](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107172343594.png)
+
+   但是有个缺点:如果在覆盖的时候如果少了一个字段那么同时在覆盖的时候之前的也会清除掉!
+
+2. 现在的办法:
+
+   通过`POST`进行修改文档,格式为:`localhost:9200/索引名称/类型名称/文档id/_update `
+
+   ![image-20211107173143344](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107173143344.png)
+
+   然后我们再查看是否被修改成功了
+
+   ![image-20211107173227125](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107173227125.png)
+
+   可以发现已经修改了,这样的好处就是效率很高,我们想要修改什么就可以直接修改什么
+
+> 删除索引!
+
+删除操作一律使用`DELETE`请求,格式为`localhost:9200/索引名称/类型名称/文档id `,根据你的请求来判断索引还是删除文档记录!
+
+**注意**:按照格式指定,如果指定到索引那么就是删除索引,如果指定到类型名称那么就是删除类型名称,如果指定文档id,那么就是删除文档
+
+这是之前的索引:
+
+![image-20211107174528568](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107174528568.png)
+
+现在删除索引:
+
+![image-20211107174602289](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107174602289.png)
+
+**为true表示删除成功!**
+
+再来看索引还存不存在:
+
+![image-20211107174625240](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107174625240.png)
+
+### 5.2 基于文档的基本操作(重点)
+
+> 基本操作
+
+1. 添加数据:
+
+   ![image-20211107210956433](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107210956433.png)
+
+   多添加几条:
+
+   ![image-20211107211559591](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107211559591.png)
+
+2. 获取数据-GET
+
+   ![image-20211107211725733](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107211725733.png)
+
+3. 更新数据-PUT
+
+   ![image-20211107212045587](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107212045587.png)
+
+   缺点:如果put的时候内容不是完整的假设少了一个字段那么修改的时候就会将其原本的数据进行滞空,就好比是删除了一样!put如果不传递值,就会被覆盖!
+
+4. 更新数据-POST
+
+   ![image-20211107213720422](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107213720422.png)
+
+   好处:灵活度更高,只需要修改想要修改的字段,其他字段不会滞空!
+
+> 简单的搜索
+
+1. 通过GET方式来搜索
+
+   ```yaml
+   GET miaowei/user/1 # 通过文档id来进行搜索
+   ```
+
+> 简单的条件查询,可以根据默认的映射规则,产生基本的查询!
+
+![image-20211107215007835](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107215007835.png)
+
+**注意:** _score 权重
+
+![image-20211107220047229](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107220047229.png)
+
+> 复杂操作搜索 select(排序、分页、高亮、模糊查询、精准查询。。。)
+
+1. 构建查询
+
+   ![image-20211107220842901](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107220842901.png)
+
+   增加两条数据再查询一次看看:
+
+   ![image-20211107222308217](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107222308217.png)
+
+   **说明**:relation:eq; 关系:匹配、相等就是equals的意思！ 然后下面查询出来的数据会根据“_score"的匹配度从高到底进行排序!
+
+2. 如果我们查询不需要那么多字段进行查询出来,我们仅仅需要查看name和desc两个属性,其他的不要怎么办呢?
+
+   ![image-20211107223713843](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107223713843.png)
 

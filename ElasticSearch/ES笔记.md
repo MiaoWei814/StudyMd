@@ -1034,6 +1034,8 @@ To forever,study every day, good good up # 文档2包含的内容
 
 ### 5.2 基于文档的基本操作(重点)
 
+#### 1.简单操作
+
 > 基本操作
 
 1. 添加数据:
@@ -1076,6 +1078,8 @@ To forever,study every day, good good up # 文档2包含的内容
 
 ![image-20211107220047229](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107220047229.png)
 
+#### 2.复杂操作
+
 > 复杂操作搜索 select(排序、分页、高亮、模糊查询、精准查询。。。)
 
 1. 构建查询
@@ -1088,7 +1092,579 @@ To forever,study every day, good good up # 文档2包含的内容
 
    **说明**:relation:eq; 关系:匹配、相等就是equals的意思！ 然后下面查询出来的数据会根据“_score"的匹配度从高到底进行排序!
 
-2. 如果我们查询不需要那么多字段进行查询出来,我们仅仅需要查看name和desc两个属性,其他的不要怎么办呢?
+   > 查询指定的字段
+
+   如果我们查询不需要那么多字段进行查询出来,我们仅仅需要查看name和desc两个属性,其他的不要怎么办呢?
 
    ![image-20211107223713843](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211107223713843.png)
 
+   其实这个就好比是我们之前使用的是`select *`,而现在加入了就好比是`select name,desc`,就好理解了!
+
+   我们使用Java操作es,所有的方法和对象就是这里面的key!这个key比如就是hits或者query等等等!
+
+   > 排序!
+
+   对查询出来的数据进行排序!
+
+   ![image-20211111110105391](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111110105391.png)
+
+> 分页查询!
+
+![image-20211111110556170](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111110556170.png)
+
+from:从第几个数据开始(数据下标还是从0开始);  size:返回多少条数据  
+
+> 布尔值查询----多条件查询
+
+> and--must
+
+must相当于SQL中的`and`,所有的条件都要符合!
+
+![image-20211111113020088](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111113020088.png)
+
+这是构建查询的错误示例:
+
+```java
+GET miaowei/user/_search
+{
+  "query": {
+    "match": {      //不能在一个匹配规则里面加多个字段查询
+      "name": "张",
+      "age":3
+    }
+  }
+}
+//返回
+{
+  "error" : {
+    "root_cause" : [
+      {
+        "type" : "parsing_exception",
+          //翻译为:查询不支持多个字段，找到的字段
+        "reason" : "[match] query doesn't support multiple fields, found [name] and [age]",  
+        "line" : 5,
+        "col" : 13
+      }
+    ],
+    "type" : "parsing_exception",
+    "reason" : "[match] query doesn't support multiple fields, found [name] and [age]",
+    "line" : 5,
+    "col" : 13
+  },
+  "status" : 400
+}
+```
+
+```java
+GET miaowei/user/_search
+{
+  "query": {
+    "match": {
+      "name": "张"
+    },
+    "match": {     //这里就不能这样去写:因为:“重复键”匹配
+      "age": "3"
+    }
+  }
+}
+```
+
+**理解**:普通的构建查询只能有一个匹配规则也就是match,而且match里面只能有一个查询字段,这就相当于`select * from xx where 字段 ='查询文本'`
+
+> or--should
+
+上面用must表示and的意思,那么接下来就是表示or或的意思!
+
+![image-20211111114123187](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111114123187.png)
+
+​	等价于**or**的意思,就是两个条件满足其一就可以了!
+
+> not--must_not
+
+![image-20211111114527328](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111114527328.png)
+
+不等于也就是**not**;在SQL中好比是`select * from xx where name!=张三 and age!=1`的结果并返回
+
+not过滤一些条件,就是一种反向操作!
+
+> 过滤器--filter
+
+![image-20211111115345807](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111115345807.png)
+
+- gt:大于>
+- lt:小于<
+- gte:大于等于 >=
+- lte:小于等于 <=
+
+可以进行多个条件进行过滤:
+
+![image-20211111115910480](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111115910480.png)
+
+> 短语搜索--只要含有这个标签满足一个就给我返回这个数据了。
+
+ ![image-20211111120533775](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111120533775.png)
+
+**注意**:
+
+1. 多个条件使用空格隔开,主要满足其中一个结果就可以查出,就可以通过分值来进行基本的判断!
+
+> 精确查询!
+
+term查询是直接通过倒排索引指定的词条进行精确查找的!
+
+![image-20211111120937646](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111120937646.png)
+
+**关于分词**:
+
+- term:是倒排索引之后直接查找精确的值
+- match:会使用分词器进行解析!(先分析文档,然后再通过分析的文档进行查询!)
+
+**两个类型**:
+
+- keyword:是不会被分词器进行解析的!
+- text:可以被分词器进行解析
+
+比如我这里对两个类型进行测试:
+
+```bash
+# 1.新建索引,并设置字段规则,如果不设置会有默认的规则
+PUT testdb
+{
+  "mappings": {
+    "properties": {
+      "name":{
+        "type": "text"
+      },
+      "desc":{
+        "type": "keyword"
+      }
+    }
+  }
+}
+# 2.新建文档,添加数据进去
+PUT testdb/_doc/1
+{
+  "name":"MiaoDaWei很name",
+  "desc":"MiaoDaWei很desc"
+}
+PUT testdb/_doc/2
+{
+  "name":"MiaoDaWei很name",
+  "desc":"MiaoDaWei很desc2"
+}
+# 构建查询
+GET testdb/_doc/_search
+{
+  "query":{
+    "match":{
+      "desc":"MiaoDaWei很desc"
+    }
+  }
+}
+# 根据不同类型就会走不同的分词器去实现的，如果类型是keyword那么就会走最下面那个
+GET _analyze
+{
+  "analyzer": "standard",
+  "text":"MiaoDaWei很desc"   # 会被拆分成:miaodawei、很、desc
+}
+# 分词器查询,keyword类型就不会进行解析,而是认为这是一个关键字类型
+GET _analyze
+{
+  "analyzer": "keyword",
+  "text":"MiaoDaWei很desc"	# 不会进行拆分，本身就是关键字：MiaoDaWei很desc
+}
+```
+
+这是构建查询的结果:
+
+![image-20211111160637113](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111160637113.png)
+
+​	![image-20211111161109849](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111161109849.png)
+
+回头过来我们来看看term查询：
+
+1. ![image-20211111161935037](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111161935037.png)
+
+2. ![image-20211111162003439](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111162003439.png)
+
+从结果上看:第一个使用字段`name`等于"很"那么他就会去匹配分词器中被拆分的,只要符合要求就会返回,而字段`desc`等于"MiaoDaWei很desc"不会拆分所以可以精确匹配到
+
+**总结**：
+
+```bash
+	首先可以看出match跟term都是用于查询匹配,其中两者主要的区别就是查询的方式不同效率不同,当然我这里数据量太少了看不出而已!
+- term:使用倒排索引精确查询
+- match:解析文档,然后通过文档来进行查询
+	首先我们的字段类型:keyword和text,前者是关键字类型后者是文本类型,在使用分词解析器的时候,分词就会进行一个拆分,当然keyword不会进行拆分而text就会被解析,然后使用term查询就会携带数据往倒排索引查询,倒排索引会将文档中不重复的词放入一个列表中然后通过输入参数快速计算出哪些列表包含了它并且计算相应的匹配分数,而如果文档中不存在该关键字的文档就会自动过滤到不会出现在倒排索引中,这样就会极大的提高了查询效率; 而match查询就会从真个文档进行解析查询,不管是否包含了这个关键字的文档都要去解析匹配,自然两者相比,term的效率自然就比match高!
+-------------------------------------------------------------
+总之:term就进行精确的解析,它会遇到分词器,而分词器有两种情况一个是会被分词器解析一个是不会被分词器进行解析。
+查询资料:
+- term:term是代表完全匹配，也就是精确查询，搜索前不会再对搜索词进行分词拆解。是不经过分词的，直接去倒排索引查找精确的值
+- match:match进行搜索的时候，会先进行分词拆分，拆完后，再来匹配,match是经过分析(analyer)的，也就是说，文档是先被分析器处理了，根据不同的分析器，分析出的结果也会不同，在会根据分词 结果进行匹配。
+拆解后(或者不拆分)再去搜索,然后遇到分词器,对已存在的数据进行分词拆分,然后就会一个个匹配,匹配成功就会返回!
+```
+
+> 多个值匹配精确查询-terms
+
+文档:https://www.elastic.co/guide/cn/elasticsearch/guide/current/_finding_multiple_exact_values.html
+
+![image-20211111165315010](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111165315010.png)
+
+其实上述可以缩写修改为:
+
+```bash
+# 查询 精确查找多个值
+GET testdb/_doc/_search
+{
+ "query": {
+  "terms": {    # 使用terms精确查找多个值
+   "t1": ["22", "33"]
+ }
+ }
+}
+```
+
+
+
+> 高亮查询
+
+![image-20211111171829991](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111171829991.png)
+
+可以发现它会自动加上`<em></em>`标签来展示高亮,那么我们可不可以进行修改呢?就是不要这个高亮标签,我想换成红色高亮标签!
+
+![image-20211111172428218](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111172428218.png)
+
+
+
+> 说明:
+
+注意:
+
+​	elasticsearch 在第一个版本的开始 每个文档都储存在一个索引中，并分配一个 映射类型，映射类型用于表示被索引的文档或者实体的类型，这样带来了一些问题, 导致后来在 elasticsearch6.0.0 版本中一个文档只能包含一个映射类型，而在 7.0.0 中，映 射类型则将被弃用，到了 8.0.0 中则将完全被删除。
+​	只要记得，一个索引下面只能创建一个类型就行了，其中各字段都具有唯一性，如果在创建映射的时候，如果没有指定文档类型，那么该索引的默认索引类型是 **_doc** ，不指定文档id则会内部帮我们生成一个id字符串
+
+## 6.集成SpringBoot
+
+### 6.1 文档查询
+
+在学习如何集成使用Java来操作ES的时候,我们先从官方文档入手,这样如何去扩展去学习es的使用:
+
+这是中文使用文档:https://www.elastic.co/guide/cn/elasticsearch/guide/current/index.html
+
+1. 找到es的官网指导文档:https://www.elastic.co/guide/index.html
+
+2. 找到 Elasticsearch Clients（这个就是客户端api文档）
+
+   ![image-20211111175839528](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111175839528.png)
+
+3. 我们使用java rest风格api，大家可以更加自己的版本选择特定的other versions。
+
+   ![image-20211111180149517](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111180149517.png)
+
+4. rest又分为**high level(高级客户端)**和**low level(低级客户端)**，我们直接选择**high level**下面的 **Getting started**
+
+   ![image-20211111180747251](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111180747251.png)
+
+5. 向下阅读找到Maven依赖和基本配置！
+
+   ![image-20211111181045246](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111181045246.png)
+
+6.那么此时我们就找到了maven的配置,那么我们再点击旁边的**Initialzation**初始化设置: 
+![image-20211111181438520](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111181438520.png)
+
+可以发现这里可以绑定多个客户端,其实es本身就是一个集群,下面还有一个close表示关闭客户端
+
+> Java REST Client 说明
+
+Java REST Client有两种风格:
+
+**Java Low Level REST Client**:用于Elasticsearch的官方低级客户端。它允许通过http与Elasticsearch集群通信。将请求编排和响应反编排留给用户自己处理。它兼容所有的Elasticsearch版本。（PS：学过WebService的话，对编排与反编排这个概念应该不陌生。可以理解为对请求参数的封装，以及对响应结果的解析）
+
+**Java High Level REST Client **:用于Elasticsearch的官方高级客户端。它是基于低级客户端的，它提供很多API，并负责请求的编排与响应的反编排。（PS：就好比是，一个是传自己拼接好的字符串，并自己解析返回的结果；而另一个是传对象，返回的结果也已经封装好了，直接是对象，更加规范了参数的名称以及格式，更加面对对象一点）
+
+（PS：所谓低级与高级，我觉得一个很形象的比喻是，面向过程编程与面向对象编程）
+
+网上很多教程比较老旧，都是使用TransportClient操作的，在 Elasticsearch 7.0 中不建议使用TransportClient，并且在8.0中会完全删除TransportClient。因此，官方更建议我们用Java High Level REST Client，它执行HTTP请求，而不是序列号的Java请求。既然如此，这里我们就直接用高级了。
+
+### 6.2 基本配置和源码分析
+
+勾选es是在NoSQL去勾选
+
+![image-20211111183359554](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111183359554.png)
+
+> 配置项目基本依赖
+
+```xml-dtd
+ <dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+</dependency>
+```
+
+这个要注意一个细节,因为这里没指定版本那么就有SpringBoot默认的版本,那么我们来看一下:
+
+![image-20211111195042429](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111195042429.png)
+
+​	发现这里版本是7.12.1,而我们本地es的版本是7.6.1版本不一致,这种不一致极容易导致有些时候启动或者调用的时候出现错误!
+
+在启动的时候idea控制台也给出了警告信息:
+
+```
+2021-11-11 19:40:27.551  WARN 19224 --- [ main] o.s.d.elasticsearch.support.VersionInfo  : Version mismatch in between Elasticsearch Client and Cluster: 7.12.1 - 7.6.1
+```
+
+解决办法:
+
+```xml-dtd
+<properties>
+  <java.version>1.8</java.version>
+  <!-- 这里SpringBoot默认配置的版本不匹配，我们需要自己配置版本！ -->
+  <elasticsearch.version>7.6.1</elasticsearch.version>
+</properties>
+
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+</dependency>
+```
+
+继续阅读文档到Initialization ，我们看到需要构建RestHighLevelClient对象；
+
+```java
+RestHighLevelClient client = new RestHighLevelClient(
+    RestClient.builder(
+        new HttpHost("localhost", 9200, "http"),
+        new HttpHost("localhost", 9201, "http"))); // 构建客户端对象
+// 操作....
+// 高级客户端内部会创建低级客户端用于基于提供的builder执行请求。低级客户端维护一个连接池，并启动一些线程，因此当你用完以后应该关闭高级客户端，并且在内部它将会关闭低级客户端，以释放这
+//些资源。关闭客户端可以使用close()方法：
+client.close(); // 关闭
+```
+
+我们编写一个配置类，提供这个bean来进行操作
+
+```java
+@Configuration
+//@Configuration注解里面有一个@Compoent,表示这将注入到Spring容器中去
+public class ElasticSearchConfig {
+
+    /**
+     * "@Bean":就好比是之前学习spring中xml配置文件:<beans id="restHighLevelClient" class="RestHighLevelClient"></beans>
+     *
+     * @return {@link RestHighLevelClient}
+     */
+    @Bean
+    public RestHighLevelClient restHighLevelClient() {
+        //构建客户端对象,如果是集群那么就new多个HttpHost
+        return new RestHighLevelClient(RestClient.builder(new HttpHost("127.0.0.1", 9200, "http")));
+    }
+}
+```
+
+
+
+> 源码解析:
+
+只要是SpringBoot我们都去看看它的源码,看看它是怎么实现自动配置:
+
+1. 找到`/spring-boot-autoconfigure/2.5.6/spring-boot-autoconfigure-2.5.6.jar!/META-INF/spring.factories:46`这一行,然后点开:
+
+   ```java
+   @Configuration(proxyBeanMethods = false)
+   @ConditionalOnClass({ ElasticsearchRestTemplate.class })
+   @AutoConfigureAfter({ ElasticsearchRestClientAutoConfiguration.class,
+   		ReactiveElasticsearchRestClientAutoConfiguration.class })
+   @Import({ ElasticsearchDataConfiguration.BaseConfiguration.class,
+   		ElasticsearchDataConfiguration.RestClientConfiguration.class,
+   		ElasticsearchDataConfiguration.ReactiveRestClientConfiguration.class })
+   public class ElasticsearchDataAutoConfiguration {
+   
+   }
+   ```
+
+2. 这是关于ElasticSearch的源码都在这里:
+
+   ![image-20211111212306860](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211111212306860.png)
+
+3. 因为我们使用的Java REST的所以我们需要用下面的那个elasticsearch,然后我们点击下面的那个`ElasticsearchRestClientAutoConfiguration`看看:
+
+   ```java
+   @Configuration(proxyBeanMethods = false)
+   @ConditionalOnClass(RestHighLevelClient.class)
+   @ConditionalOnMissingBean(RestClient.class)
+   @EnableConfigurationProperties(ElasticsearchRestClientProperties.class)
+   @Import({ RestClientBuilderConfiguration.class, 
+             RestHighLevelClientConfiguration.class, //Rest 高级客户端对象
+   		  RestClientSnifferConfiguration.class }) 
+   public class ElasticsearchRestClientAutoConfiguration {
+   
+   }
+   ```
+
+   这些都是源码里提供的一些对象,我们可以拿来即用
+
+4. 我们点击`RestClientBuilderConfiguration`这个类里面看看:
+
+   ```java
+   @Bean
+   RestClientBuilder elasticsearchRestClientBuilder(ElasticsearchRestClientProperties properties,
+                                                    ObjectProvider<RestClientBuilderCustomizer> builderCustomizers) {
+       HttpHost[] hosts = properties.getUris().stream().map(this::createHttpHost).toArray(HttpHost[]::new);
+       RestClientBuilder builder = RestClient.builder(hosts); //这里构建一些基本的操作,比如这里端口号
+       builder.setHttpClientConfigCallback((httpClientBuilder) -> {
+           builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(httpClientBuilder));
+           return httpClientBuilder;
+       });
+       builder.setRequestConfigCallback((requestConfigBuilder) -> {
+           builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(requestConfigBuilder));
+           return requestConfigBuilder;
+       });
+       builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
+       return builder;
+   }
+   ```
+
+   这个方法主要用于可以读取配置文件来构建你的客户端
+
+5. 再往下走:
+
+   ```java
+   @Bean
+   //我们使用的就是这个高级客户端,如果说你什么都不配置的话那么就默认的就是这个
+   RestHighLevelClient elasticsearchRestHighLevelClient(RestClientBuilder restClientBuilder) {
+       return new RestHighLevelClient(restClientBuilder);
+   }
+   ```
+
+6. 我们点击`RestHighLevelClient(restClientBuilder)`默认构造器了哪些东西
+
+   ```java
+   public class RestHighLevelClient implements Closeable {
+       private final RestClient client;
+       private final NamedXContentRegistry registry;
+       private final CheckedConsumer<RestClient, IOException> doClose;
+       private final IndicesClient indicesClient; 
+       private final ClusterClient clusterClient;
+       private final IngestClient ingestClient;
+       private final SnapshotClient snapshotClient;
+       private final TasksClient tasksClient;
+       private final XPackClient xPackClient;
+       private final WatcherClient watcherClient;
+       private final GraphClient graphClient;
+       private final LicenseClient licenseClient;
+       private final MigrationClient migrationClient;
+       private final MachineLearningClient machineLearningClient;
+       private final SecurityClient securityClient;
+       private final IndexLifecycleClient ilmClient;
+       private final RollupClient rollupClient;
+       private final CcrClient ccrClient;
+       private final TransformClient transformClient;
+       private final EnrichClient enrichClient;
+   ```
+
+   可以发现这里有一些默认的操作,
+
+7. 回过头来发现虽然我们这里导入了3个类,这三个类都是静态内部类,而核心类就只有一个:`ElasticsearchRestClientConfigurations`
+
+   ```java
+   /*
+    * Copyright 2012-2021 the original author or authors.
+    *
+    * Licensed under the Apache License, Version 2.0 (the "License");
+    * you may not use this file except in compliance with the License.
+    * You may obtain a copy of the License at
+    *
+    *      https://www.apache.org/licenses/LICENSE-2.0
+    *
+    * Unless required by applicable law or agreed to in writing, software
+    * distributed under the License is distributed on an "AS IS" BASIS,
+    * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    * See the License for the specific language governing permissions and
+    * limitations under the License.
+    */
+   
+   package org.springframework.boot.autoconfigure.elasticsearch;
+   
+   import java.net.URI;
+   ....
+   import xxx
+   
+   /**
+    * Elasticsearch rest client configurations.
+    *
+    * @author Stephane Nicoll
+    */
+   class ElasticsearchRestClientConfigurations {
+   
+   	@Configuration(proxyBeanMethods = false)
+   	@ConditionalOnMissingBean(RestClientBuilder.class)
+   	static class RestClientBuilderConfiguration {
+   
+   		@Bean
+   		RestClientBuilderCustomizer defaultRestClientBuilderCustomizer(ElasticsearchRestClientProperties properties) {
+   			return new DefaultRestClientBuilderCustomizer(properties);
+   		}
+   		//RestClientBuilder 第一个类
+   		@Bean
+   		RestClientBuilder elasticsearchRestClientBuilder(ElasticsearchRestClientProperties properties,
+   				ObjectProvider<RestClientBuilderCustomizer> builderCustomizers) {
+   			HttpHost[] hosts = properties.getUris().stream().map(this::createHttpHost).toArray(HttpHost[]::new);
+   			RestClientBuilder builder = RestClient.builder(hosts);
+   			builder.setHttpClientConfigCallback((httpClientBuilder) -> {
+   				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(httpClientBuilder));
+   				return httpClientBuilder;
+   			});
+   			builder.setRequestConfigCallback((requestConfigBuilder) -> {
+   				builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(requestConfigBuilder));
+   				return requestConfigBuilder;
+   			});
+   			builderCustomizers.orderedStream().forEach((customizer) -> customizer.customize(builder));
+   			return builder;
+   		}
+   
+   		....
+   
+   	}
+   
+   	@Configuration(proxyBeanMethods = false)
+   	@ConditionalOnMissingBean(RestHighLevelClient.class)
+   	static class RestHighLevelClientConfiguration {
+   
+           //RestHighLevelClient 高级客户端,也是我们项目后面会用到的客户端
+   		@Bean
+   		RestHighLevelClient elasticsearchRestHighLevelClient(RestClientBuilder restClientBuilder) {
+   			return new RestHighLevelClient(restClientBuilder);
+   		}
+   
+   	}
+   
+   	@Configuration(proxyBeanMethods = false)
+   	@ConditionalOnClass(Sniffer.class)
+   	@ConditionalOnSingleCandidate(RestHighLevelClient.class)
+   	static class RestClientSnifferConfiguration {
+   
+           //第三个类
+   		@Bean
+   		@ConditionalOnMissingBean
+   		Sniffer elasticsearchSniffer(RestHighLevelClient client, ElasticsearchRestClientProperties properties) {
+   			SnifferBuilder builder = Sniffer.builder(client.getLowLevelClient());
+   			PropertyMapper map = PropertyMapper.get().alwaysApplyingWhenNonNull();
+   			map.from(properties.getSniffer().getInterval()).asInt(Duration::toMillis)
+   					.to(builder::setSniffIntervalMillis);
+   			map.from(properties.getSniffer().getDelayAfterFailure()).asInt(Duration::toMillis)
+   					.to(builder::setSniffAfterFailureDelayMillis);
+   			return builder.build();
+   		}
+   
+   	}
+   	...
+   
+   }
+   
+   ```
+
+### 6.3 具体的API测试
+
+
+
+   

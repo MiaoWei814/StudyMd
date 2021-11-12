@@ -549,7 +549,30 @@ rabbitmqctl set_permissions -p / 用户名 ".*" ".*" ".*" 为用户设置adminis
 rabbitmqctl set_permissions -p / root ".*" ".*" ".*"
 ```
 
+> 将MQ安装到系统服务中,随着电脑启动而启动
 
+```erlang
+RabbitMQ Service-install :安装服务 
+RabbitMQ Service-remove 删除服务 
+RabbitMQ Service-start 启动 
+RabbitMQ Service-stop 停止
+```
+
+如果没有开始菜单则进入安装目录下sbin目录手动启动:
+
+![image-20211112171022938](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112171022938.png)
+
+```erlang
+安装并运行服务 
+rabbitmq-service.bat install 安装服务 
+rabbitmq-service.bat stop 停止服务 
+rabbitmq-service.bat start 启动服务
+```
+
+注意踩坑:
+
+1. 如果安装路径有中文，或者系统登录用户是中文账户，启动RabbitMQ会闪退，需要修改MQ的配置
+   - 解决方案：https://blog.csdn.net/leoma2012/article/details/97636859
 
 ### 3.2 RabbitMQ的角色分类
 
@@ -717,7 +740,7 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
                 * @Params5 携带一些附加参数,可以设置队列附加参数，设置队列的有效期，消息的最大长度，队列的消息生命周期等等。
                 */
                String queueName = "queue1";
-               //声明队列
+               //声明队列-创建队列,
                channel.queueDeclare(queueName, false, false, false, null);
                //5.准备发送消息内容
                String message = "Hello MQ,I is Simple";
@@ -729,7 +752,7 @@ Producer是消息生成者,消费者是订阅这个消息,我们现在需要干�
                 * @Params4 :发送的内容
                 */
                //这里Publish就是我们之前学习redis的命令,是发布者订阅者模式中的发布命令
-               //这里因为是默认交换机所以类型为direct,所以这里的routingkey默认为队列名,
+               //这里因为是默认交换机所以类型为direct,所以这里的routingkey默认为队列名,并且我们这里走的是默认交换机,而默认交换机和队列进行绑定,所以我们不需要进行绑定交换机和队列之间				的关系
                channel.basicPublish("", queueName, null, message.getBytes(StandardCharsets.UTF_8)); 
    			//面试题:可以存在没有交换机的队列吗?不可能!虽然没有指定交换机但是一定存在一个默认的交换机!
                System.out.println("消息发送成功!");
@@ -859,7 +882,8 @@ public class Consumer {
             //3.通过连接获取通道channel
             channel = connection.createChannel();
             //4.通过通道创建交换机,声明队列,绑定关系,路由key,发送消息和接收消息
-            //这里表示从`queue1`这个队列里面取
+            //这里表示从`queue1`这个队列里面取,-----可以理解为这是在监听队列
+            //第二个参数是是否是自动应答
             channel.basicConsume("queue1", true, new DeliverCallback() {
                 @Override
                 public void handle(String s, Delivery delivery) throws IOException {
@@ -1013,7 +1037,7 @@ Broker:就是我们的MQ服务,一个节点的意思
 
 ​	这里我们还可以看见broker,代表是服务的意思也就是一个节点,它就是rabbitMQ的服务,后面也就是有很多的broker的集群,在这个集群里为了去隔离和区分,这里也搞了一个虚拟机节点,这个虚拟节点可以理解为我们电脑中的磁盘,比如C盘D盘,目的就是为了隔离!这样子去理解:我们在系统中有订单消息和用户消息等等各种各样的信息全部堆积在这个一个根节点就会庞大难以区分,所以这个虚拟节点就将其分隔开,在web界面在admin那里就可以看见一个Virture Host虚拟节点,默认是"/"根节点!;然后消费者就会来订阅我们的消息,一旦被订阅,那么交换机就会把消息推送给我们的Cousumer(消费者);
 
-**总结**:其实说这么多,总体是这样的:一个生产者生产消息然后创建连接管道,当然可以创建多个连接管道,然后在其中一个连接管道里获取一个信道里通过交换机来传输消息到MQ服务中,而在MQ中存在多个虚拟节点当然由我们指定,这些虚拟节点的目的就是为了隔离与区分,就好比电脑盘符去指定盘符下运行,然后在虚拟节点中通过交换机获取到消息然后进行消息分发和投递,这个时候就会有一些分发策略,如:发布订阅模式,轮询分发等等,在这个过程中会通过routingkey来筛选是否确定给指定的消费者分发消息,没有就都发!然后投递到我们的消息队列中,进行保存和转发!其中bindins就是交换机和队列之间的虚拟连接,中间保护了路由key;然后这个消费者也通过相同的步骤,订阅了我们这个消息,也就是消费者跟队列进行绑定,生产者生产消息跟交换机绑定,bindings把交换机和队列进行绑定,那么此时队列就会将消息转发给我们的消费者!
+**总结**:其实说这么多,总体是这样的:一个生产者生产消息然后创建连接管道,当然可以创建多个连接管道,然后在其中一个连接管道里获取一个信道里通过交换机来传输消息到MQ服务中,而在MQ中存在多个虚拟节点当然由我们指定,这些虚拟节点的目的就是为了隔离与区分,就好比电脑盘符去指定盘符下运行,然后在虚拟节点中通过交换机获取到消息然后进行消息分发和投递,这个时候就会有一些分发策略,如:发布订阅模式,轮询分发等等,在这个过程中会通过routingkey来筛选是否确定给指定的消费者分发消息,没有就都发!然后投递到我们的消息队列中,进行保存和转发!其中bindins就是交换机和队列之间的虚拟连接也就是一个绑定关系,中间保护了路由key,也就是交换机通过路由key进行分发给消息队列;然后这个消费者也通过相同的步骤,订阅了我们这个消息,也就是消费者跟队列进行绑定,生产者生产消息跟交换机绑定,bindings把交换机和队列进行绑定,那么此时队列就会将消息转发给我们的消费者!
 
 
 
@@ -1864,6 +1888,31 @@ public class Consumer {
 
 > 也就说这个模式就是根据我们的条件去达成!通过在发送消息的设置Headers,然后去交换机里找是否满足条件!
 
+代码:
+
+```java
+生产者:
+String message = "email inform to user"+i; 
+Map<String,Object> headers = new Hashtable<String, Object>(); 
+headers.put("inform_type", "email");//匹配email通知消费者绑定的header 
+AMQP.BasicProperties.Builder properties = new AMQP.BasicProperties.Builder(); 
+properties.headers(headers); 
+//Email通知 
+channel.basicPublish(EXCHANGE_HEADERS_INFORM, "", properties.build(), message.getBytes());
+```
+
+消费者:
+
+```java
+channel.exchangeDeclare(EXCHANGE_HEADERS_INFORM, BuiltinExchangeType.HEADERS); 
+Map<String, Object> headers_email = new Hashtable<String, Object>(); 
+headers_email.put("inform_type", "email"); 
+//交换机和队列绑定 
+channel.queueBind(QUEUE_INFORM_EMAIL,EXCHANGE_HEADERS_INFORM,"",headers_email); 
+//指定消费队列 
+channel.basicConsume(QUEUE_INFORM_EMAIL, true, consumer); 
+```
+
 
 
 ### 5.6 Work queues模式
@@ -2665,6 +2714,17 @@ public class Consumer {
 
 
 
+### 5.8 RPC
+
+![image-20211112172903843](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112172903843.png)
+
+RPC即客户端远程调用服务端的方法 ，使用MQ可以实现RPC的异步调用，基于Direct交换机实现，流程如下：
+
+1. 客户端即是生产者就是消费者，向RPC请求队列发送RPC调用消息，同时监听RPC响应队列
+2. 服务端监听RPC请求队列的消息，收到消息后执行服务端的方法，得到方法返回的结果
+3. 服务端将RPC方法 的结果发送到RPC响应队列
+4. 客户端（RPC调用方）监听RPC响应队列，接收到RPC调用结果
+
 ## 6.MQ使用场景(面)
 
 在很多面试的场景中我们都会被问到一个点比如问你使用MQ的应用场景,redis的使用场景,如:"小明,你用MQ用在什么场景里面,你是怎么用的,为什么要用"。如果我们直接一上来就直接套概念那么一定会被认为是新手,认为你只是了解过但是并没有是实战过；那么接下来我们使用模板语句来套：
@@ -2681,7 +2741,25 @@ public class Consumer {
 
 接下来具体看看什么是解耦、削峰、异步:
 
+记录:
+
+解耦:以前的结构就是服务器A直接向服务器B直接调用,这样就会造成耦合度太高! 而现在服务器C在服务器A和服务器B之间,这样服务器A只需要向服务器C发消息,而服务器B只需要接收服务器C的消息,这样就会进行解耦的作用!让MQ充当中间件技术!而后面如果要扩展服务都不会对整个服务架构有影响!这就是解耦的好处!
+
 ### 6.1 解耦、削峰、异步
+
+MQ是一种队列,遵循先进先出的原则；
+
+MQ是一种应用程序之间的通信方法!，不同语言系统之间如何去沟通，那么MQ就在中间充当中间件技术，由它来进行一个转变
+
+好处：解耦、异步、削峰
+
+**异步**：因为MQ是异步的内部是一种多线程的分发机制所以给他发消息是会立即返回的，不需要等待也不需要多大的网络开销啥的；
+
+**削峰**：这是一种流量削峰，也就是并发如果很大的情况下一秒钟请求超过了CPU处理顶峰，比如tomcat一秒钟只能处理200个请求，而如果有300个请求同时请求处理，那么剩下的就只能选择等待，那么这是非常耗时，而现在因为MQ是异步的，所以请求速度特别快不需要一致等待处理成功再返回，那么因为异步所以很快的处理后面的请求做更多的事，所以说流量得到了一个削峰！
+
+**解耦**：因为MQ是中间件技术，也就是处于两个服务的中间，让两个服务不会直接性的调用，让耦合度进行解耦！这样如果要扩展服务也不会对原本的架构产生影响！
+
+
 
 > 同步异步的问题(串行)
 
@@ -3426,4 +3504,230 @@ public class EmailService {
 
    - 配置类的方式
    - 注解的方式
+
+## 8.上课笔记
+
+### 8.1 消费者监听消息
+
+消费者监听消息的时候可以这样去写:
+
+```java
+//测试
+//channel:这是信道
+//因为回调必须是Cusmer类型,而它又是接口,所以我们new它的子类,由于直接nw的话我们是拿不到消息,所以我们需要对new的子类里的方法进行重写!----ok!
+com.rabbitmq.client.Consumer consumer = new DefaultConsumer(channel){
+/**
+             * 消费者接收消息调用此方法
+             * @param consumerTag 消费者的标签，在channel.basicConsume()去指定,
+             * @param envelope 消息包的内容，可从中获取消息id，消息routingkey，交换机，消息和重传标志(收到消息失败后是否需要重新发送)
+             * @param properties 消息的其他属性
+             * @param body	消息主体
+*/
+    @Override
+    public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+        System.out.println("consumerTag = " + consumerTag);
+        System.out.println("获取交换机 = " + envelope.getExchange());
+        System.out.println("获取路由key = " + envelope.getRoutingKey());
+        System.out.println("获取消息的id = " + envelope.getDeliveryTag());
+        System.out.println("获取其他属性 = " + properties.getHeaders());
+        System.out.println("获取消息主体 = " + new String(body));
+    }
+};
+ /**
+         * 监听队列String queue, boolean autoAck,Consumer callback
+         * 参数明细
+         * 1、队列名称
+         * 2、是否自动回复，设置为true为表示消息接收到自动向mq回复接收到了，mq接收到回复会删除消息，设置为false则需要手动回复
+         * 3、消费消息的方法，消费者接收到消息后调用此方法
+*/
+channel.basicConsume("queue1", true,consumer); //监听消息队列,然后进行消息回调
+```
+
+打印内容:
+
+```c
+开始接收消息
+consumerTag = amq.ctag-E97ERawq8eqPyn4SenSwgg
+获取交换机 = 
+获取路由key = queue1
+获取消息的id = 1
+获取其他属性 = null
+获取消息主体 = Hello MQ,I is Simple
+```
+
+**理解**:这里消息接收监听是这样子的,`channel.basicConsume`中第三个参数是一个回调类型,也就是接收的消息就会往这里面投递,而这个回调类型是`consumer`,而它是一个接口我们能不能直接实现它可不可以,这是可以的,看源码也看出它的实现类实现的方法也是一个空方法,那么我们可以直接用它的实现类,所以我们直接new一个`DefaultConsumer`默认的实现类,然后我们采用一个匿名内部类重写方法就可以了,而重写的方法中通过`body`就可以拿到消息主体了!
+
+### 8.2 消息确认机制
+
+在上述案例中,如果消费者在监听消息的过程中,如果出现异常或者报错,那么就会导致一个问题:消息没接收到,而在图形化界面中队列中消息已经被自动确认移除了!
+
+那这样就会导致消息出现丢失的情况!!!
+
+因此，RabbitMQ有一个ACK机制。当消费者获取消息后，会向RabbitMQ发送回执ACK，告知消息已经被接收。不过这种回执ACK分两种情况：
+
+- 自动ACK：`消息一旦被接收，消费者自动发送ACK`
+- 手动ACK：`消息接收后，不会发送ACK，需要手动调用`
+
+当然这也需要看消息的重要性,并不是什么消息我们都要进行手动ACK:
+
+- 如果消息不太重要，丢失也没有影响，那么自动ACK会比较方便
+- 如果消息非常重要，不容丢失。那么最好在消费完成后手动ACK，否则接收消息后就自动ACK;RabbitMQ就会把消息从队列中删除。如果此时消费者宕机，那么消息就丢失了。
+
+这是报错代码:
+
+```java
+com.rabbitmq.client.Consumer consumer = new DefaultConsumer(finalChannel){
+    @Override
+    public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+        System.out.println("consumerTag = " + consumerTag);
+        int i = 1 / 0;  //这里发生报错并不会往下执行,消息发生丢失
+        System.out.println("获取交换机 = " + envelope.getExchange());
+        System.out.println("获取路由key = " + envelope.getRoutingKey());
+        System.out.println("获取消息的id = " + envelope.getDeliveryTag());
+        System.out.println("获取其他属性 = " + properties.getHeaders());
+        System.out.println("获取消息主体 = " + new String(body));
+    }
+};
+channel.basicConsume("queue1",true, consumer); //这里第二个参数是自动应答,只要接收就移除队列中的消息,消息依然被消费
+```
+
+这是正确的代码:
+
+```java
+//既然是手动应答容易出现消息的丢失,那么我门就进行一个手动应答!
+com.rabbitmq.client.Consumer consumer = new DefaultConsumer(finalChannel){
+    @Override
+    public void handleDelivery(String consumerTag, Envelope envelope, AMQP.BasicProperties properties, byte[] body) throws IOException {
+        System.out.println("consumerTag = " + consumerTag);
+        int i = 1 / 0;  //这里发生报错,消息发生丢失
+        System.out.println("获取交换机 = " + envelope.getExchange());
+        System.out.println("获取路由key = " + envelope.getRoutingKey());
+        System.out.println("获取消息的id = " + envelope.getDeliveryTag());
+        System.out.println("获取其他属性 = " + properties.getHeaders());
+        System.out.println("获取消息主体 = " + new String(body));
+        //因为我们设置了手动应答,在没有应答之前消息依然在队列中
+        //手动应答,第一个参数是消息的id, 第二个参数表示是否批量应答,我们设置false即可,
+        finalChannel.basicAck(envelope.getDeliveryTag(), false);
+    }
+};
+channel.basicConsume("queue1",false, consumer); 
+```
+
+这是图示:
+
+![image-20211112123637068](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112123637068.png)
+
+这是因为虽然我们设置了手动ACK，但是代码中并没有进行消息确认！所以消息并未被真正消费掉。
+
+当我们关掉这个消费者，消息的状态再次称为Ready
+
+### 8.3 使用场景
+
+开发中消息队列通常有如下应用场景:
+
+- 提高系统响应速度
+  - 任务异步处理。 将不需要同步处理的并且耗时长的操作由消息队列通知消息接收方进行异步处理,提高了应用程序的响应时间。
+- 提高系统稳定性
+  - 系统挂了关系,操作内容放到消息队列--持久化
+- 服务调用异步化
+  - 服务没有直接的调用关系，而是通过队列进行服务通信--中间件
+- 服务解耦
+  - 应用程序解耦合 MQ相当于一个中介，生产方通过MQ与消费方交互，它将应用程序进行解耦合
+- 排序保证FIFO
+  - 遵循队列先进先出的特点
+- 消除峰值
+  - 异步化提速(发消息),提高系统稳定性(多系统调用),服务解耦(5-10个服务),排序保证,消除峰值
+
+![image-20211112170757263](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112170757263.png)
+
+### 8.4 轮询分发和公平分发
+
+![image-20211112171952548](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112171952548.png)
+
+公平模式与入门程序相比，多了一个消费端，两个消费端共同消费同一个队列中的消息。
+
+**应用场景**：对于任务过重或任务较多情况使用工作队列可以提高任务处理的速度。 
+
+**测试**:
+
+1. 使用入门程序，启动多个消费者
+2. 生产者发送多个消息
+
+**结果**:
+
+1. 一条消息只会被一个消费者接收
+2. rabbit采用轮询的方式将消息是平均发送给消费者的
+3. 消费者在处理完某条消息后，才会收到下一条消息
+
+`轮询分发`:会为每个消费者公平分发消息,这种就会导致一个问题: 处理数据快的消费者提前消费完了,而处理数据慢的消费者的大量消息堵在门口,等待被消费!造成大量的消息堵塞!
+
+```
+	工作队列，又称任务队列。主要思想就是避免执行资源密集型任务时，必须等待它执行完成。相反我们稍后完成任务，我们将任务封装为消息并将其发送到队列。 在后台运行的工作进程将获取任务并最终执行作业。当你运行许多工人时，任务将在他们之间共享，但是一个消息只能被一个消费者获取
+	这个概念在Web应用程序中特别有用，因为在短的HTTP请求窗口中无法处理复杂的任务
+```
+
+--------
+
+`公平分发`:
+
+关键词:`能者多劳`
+
+公平分发:也就是谁处理得快就处理谁!
+
+```
+	我们可以使用basicQos方法和prefetchCount = 1设置，简单理解就是一个消费者同时只能处理一个消息。 这告诉RabbitMQ一次不要向工作人员发送多于一条消息。 或者换句话说，不要向工作人员发送新消息，直到它处理并确认了前一个消息。相反，它会将其分派给不是仍然忙碌的下一个工作人员。
+```
+
+注意:使用公平分发除了`prefetchCount = 1`拉取消息数量,还有设置一个手动应答!`channel.basicAck(envelope.getDeliveryTag(), false);`并且要开启手动应答模式`channel.basicConsume("queue1", true, consumer);`
+
+### 8.5 持久化-解决数据安全
+
+如何避免消息丢失？
+
+1. 消费者的ACK机制。可以防止消费者丢失消息
+2. 但是，如果在消费者消费之前，MQ就宕机了，消息就没了
+3. 因为网络问题，消息发送失败
+4. 代码BUG，交换机或队列的routingkey找不到
+
+是可以将消息进行持久化呢？要将消息持久化，前提是：**队列**、**Exchange**都持久化
+
+1. 交换机持久化
+
+   ![image-20211112173259096](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112173259096.png)
+
+2. 队列持久化
+
+   ![image-20211112173308791](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112173308791.png)
+
+3. 消息持久化
+
+   ![image-20211112173315261](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112173315261.png)
+
+而所谓的持久化的意思就是MQ服务挂了你依然还存在服务中,等待下一次启动还能继续使用!
+
+**什么情况下会丢失消息?**
+
+1. 没做持久化,MQ挂了
+2. 消息自动签收->消息如果消费失败那么消息也就没了
+
+**怎么处理消息丢失?**
+
+1. 做消息持久化
+2. 进行手动签收
+
+自动签收的情况下如果消息接收失败,那么消息也就丢失了,因为消息自动签收了,怎么解决?修改为手动签收,就是消息消费成功后进行手动签收消息
+
+### 8.6 场景:
+
+![腾讯课堂图片20211112093101](https://gitee.com/miawei/pic-go-img/raw/master/imgs/%E8%85%BE%E8%AE%AF%E8%AF%BE%E5%A0%82%E5%9B%BE%E7%89%8720211112093101.jpg)
+
+**解读**:
+
+​	我们在平时使用手机天府通进地铁出站的时候,由于经常会遇到上下班的高峰期,而高峰期可能就是1万人或者5万人同时发起请求,那么这个时候服务器的压力肯定是很大的,而我们平时使用较多的Tomcat好比最多就只能处理200个线程,那么这时进来那么1万个请求,那么只有200个请求进来了而剩下的就只能排队等候了,那么这个时候就会出现大量的连接超时等问题,然后这个还会有重试机制,那么如果说你出站失败了那么用户就会发起第二次出站请求,那么重复这样你就发现你的CPU和内存极速上升,然后最终崩了,因为并发量太高了,并且如果说处理数据在当前服务器里处理那还算快可是如果说天府通要进行结算扣费,那么这个时候就会调用第三方支付进口银行进行扣费,那么在服务器内调用第三方服务的接口这个是有网络开销的,就会拖慢我整个的请求速度!
+
+​	而这个时候使用MQ来充当出栈接口和结算系统之间的中间件技术,用户在扫码之后只需要将扣款信息发送到MQ中,那么出站接口这边的工作就做完了然后将发送成功返回给用户说:"出栈成功,稍后结算",然后结算系统获取到MQ中的结算消息,然后调用三方服务进行订单结算!而这两者是分开的,这两边是异步的,以MQ为中心左边只负责发消息而MQ右边接收消息处理,也就是说左边发消息发完成功就直接返回了并不会去等待调用第三方支付造成的网络开销问题;
+
+​	以前的架构是处于一个同步架构,也就是处理一个订单的结算那么是一步一步执行,也可以理解为这是一个面向过程的!而现在使用MQ充当中间件技术,这是一个异步的,可理解为这是一个面向对象的,也就是说MQ左边处理会非常快,那么这就解决了流量并发的一个削峰问题!
+
+![image-20211112202634793](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112202634793.png)
 

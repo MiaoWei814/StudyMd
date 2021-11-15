@@ -1980,3 +1980,136 @@ private RestHighLevelClient restHighLevelClient;
 
 ![image-20211112223628251](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112223628251.png)
 
+## 7.实战(京东搜索)
+
+我们来最终模拟一下这个京东页面实现搜索关键字高亮:
+
+![image-20211113080021578](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211113080021578.png)
+
+### 7.1 爬虫
+
+首先现在模拟数据那么肯定要有数据才可以对吧,一般是从数据库获取、消息队列中获取都可以成为数据源,但是这些都是需要我们去造数据,现在直接用一种简单的办法那就是直接去人家官网去拿:爬虫!
+
+以京东为例顺便看到它的地址栏:
+
+https://search.jd.com/Search?keyword=Java&enc=utf-8&pvid=9e638b455bbf47f2a751f5696a9a1546
+
+从中可以得出这京东应该是另外的搜索服务器,然后用keyword关键字进行搜索!
+
+> 爬取数据:(获取请求返回的页面信息,筛选出我们想要的数据就可以了!)---jsoup包
+
+1. 导入相关依赖
+
+   ```xml
+   <!--JSON转换-->
+   <dependency>
+       <groupId>com.alibaba</groupId>
+       <artifactId>fastjson</artifactId>
+       <version>1.2.78</version>
+   </dependency>
+   <!--解析网页-->
+   <dependency>
+       <groupId>org.jsoup</groupId>
+       <artifactId>jsoup</artifactId>
+       <version>1.14.3</version>
+   </dependency>
+   <!--huttol工具-->
+   <dependency>
+       <groupId>cn.hutool</groupId>
+       <artifactId>hutool-all</artifactId>
+       <version>5.7.16</version>
+   </dependency>
+   <!--lombok-->
+   <dependency>
+       <groupId>org.projectlombok</groupId>
+       <artifactId>lombok</artifactId>
+       <optional>true</optional>
+   </dependency>
+   ```
+   
+2. 新建一个类用于装载解析后的数据
+
+   ```java
+   @Data
+   @Accessors(chain = true)
+   public class ParseSource {
+       private String parseImg;
+       private String parseContext;
+       private String parsePrice;
+   }
+   ```
+
+3. 工具类
+
+   ```java
+   package com.miao.workjddemo.util;
+   
+   import cn.hutool.core.text.CharSequenceUtil;
+   import com.miao.workjddemo.pojo.ParseSource;
+   import io.netty.util.CharsetUtil;
+   import org.jsoup.Jsoup;
+   import org.jsoup.nodes.Document;
+   import org.jsoup.nodes.Element;
+   import org.jsoup.select.Elements;
+   import org.springframework.stereotype.Component;
+   
+   import java.io.IOException;
+   import java.net.URL;
+   import java.util.ArrayList;
+   import java.util.List;
+   
+   /**
+    * @program: startDemo
+    * @description:
+    * @author: MiaoWei
+    * @create: 2021-11-15 20:01
+    **/
+   @Component
+   public class HtmlParseUtil {
+   
+       /**
+        * 解析jdbook
+        *
+        * @return {@link List}<{@link ParseSource}>
+        */
+       public List<ParseSource> parseJDBook(String keyword) {
+           List<ParseSource> result = new ArrayList<>();
+           if (CharSequenceUtil.isEmpty(keyword)) {
+               throw new RuntimeException("keyword参数不能为空!");
+           }
+           //因为在获取请求的时候路径URL不允许需要带有空格
+           keyword = CharSequenceUtil.cleanBlank(keyword);
+   
+           try {
+               //获取请求
+               //注意:需要联网 并且不能获取到AJAX, 这里enc是为了传输中文而不乱码
+               String url = CharSequenceUtil.format("https://search.jd.com/Search?keyword={}&enc={}", keyword, CharsetUtil.UTF_8);
+               //解析网页(Jsoup返回Document就是浏览器Document对象)
+               Document document = Jsoup.parse(new URL(url), 3000);
+               //所有能在js中使用的方法,这里都能进行使用
+               Element goodsList = document.getElementById("J_goodsList");
+               //获取所有的li元素
+               Elements liElementsByTag = goodsList.getElementsByTag("li");
+               //获取元素中的内容,这里el就是每一个li标签
+               ParseSource source;
+               for (Element el : liElementsByTag) {
+                   source = new ParseSource();
+                   //获取标题
+                   String context = el.getElementsByClass("p-name").get(0).text();
+                   //价格
+                   String price = el.getElementsByClass("p-price").get(0).text();
+                   //图片
+                   String img = el.getElementsByTag("img").eq(0).attr("data-lazy-img");
+                   source.setParseContext(context).setParsePrice(price).setParseImg(img);
+                   result.add(source);
+               }
+           } catch (IOException e) {
+               return result;
+           }
+           return result;
+       }
+   }
+   ```
+
+### 7.2 业务编写
+

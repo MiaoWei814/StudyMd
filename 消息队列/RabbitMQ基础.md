@@ -3731,3 +3731,204 @@ channel.basicConsume("queue1",false, consumer);
 
 ![image-20211112202634793](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211112202634793.png)
 
+### 8.7 整合springBoot
+
+![image-20211201145805286](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211201145805286.png)
+
+> 消息发送者
+
+1. 导入依赖
+
+   ```xml-dtd
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-amqp</artifactId>
+   </dependency>
+   ```
+
+2. yaml配置mq
+
+   ```yaml
+   spring:
+     application:
+       name: rabbitmq
+     rabbitmq:
+       host: 127.0.0.1
+       port: 5672
+       username: guest
+       password: guest
+       virtualHost: /
+       listener:
+         simple:
+           acknowledge-mode: manual #手动签收
+   ```
+
+3. 添加配置类
+
+   ```java
+   import org.springframework.amqp.core.*;
+   import org.springframework.beans.factory.annotation.Qualifier;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   //rabbitMQ的配置
+   //rabbitMQ的配置
+   @Configuration
+   public class RabbitMQConfig {
+   
+   
+       //定义交换机
+       @Bean
+       public Exchange exchangeNameTopic() {
+           return ExchangeBuilder.topicExchange(EXCHANGE_NAME_TOPIC).durable(true).build();
+       }
+   
+       //定义邮件的队列Bean
+       @Bean
+       public Queue emailQueue() {
+           return new Queue(QUEUE_NAME_EMAIL, true);
+       }
+   
+   
+       //定义短信的队列Bean
+       @Bean
+       public Queue smsQueue() {
+           return new Queue(QUEUE_NAME_SMS, true);
+       }
+   
+       //定义系统消息的队列Bean
+       @Bean
+       public Queue systemMessageQueue() {
+           return new Queue(QUEUE_NAME_SYSTEM_MESSAGE, true);
+       }
+   
+       //定义短信的队列绑定到交换机
+       @Bean
+       public Binding smsQueueBinding() {
+   
+           // #.sms.course
+           return BindingBuilder.bind(smsQueue()).to(exchangeNameTopic()).with("#.sms").noargs();
+   
+       }
+   
+       //定义邮件的队列绑定到交换机
+       @Bean
+       public Binding emailQueueBinding() {
+   
+           // #.email.course
+           return BindingBuilder.bind(emailQueue()).to(exchangeNameTopic()).with("#.email").noargs();
+   
+       }
+   
+       @Bean
+       public Binding systemMessageQueueBinding() {
+           // #.systemmessage.course
+           return BindingBuilder.bind(systemMessageQueue()).to(exchangeNameTopic()).with("#.message").noargs();
+   
+       }
+   
+       //定义RabbitTemplate 指定 JSON转换器
+       @Bean
+       public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+           RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+           rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter());
+           //1.把要发送的消息内容 ，交换机，rontkey等都保存下来到Mysql
+           //2.后续可以用来重写发送消息，甚至可以使用一个定时任务不停的重试，可以甚至一个最大重试次数
+           //设置消息回调
+           rabbitTemplate.setMandatory(true);
+   
+           return rabbitTemplate;
+       }
+   }
+   ```
+
+4. 发送消息
+
+   ```java
+   ...
+   rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE_NAME_TOPIC,"message.email",courseDoc.getName());
+   ...
+   ```
+
+> 消息接受者
+
+1. 导入依赖(同上)
+
+2. yaml配置mq(同上)
+
+3. 添加配置
+
+   ```java
+   import org.springframework.amqp.core.*;
+   import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+   import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+   import org.springframework.amqp.rabbit.core.RabbitTemplate;
+   import org.springframework.amqp.rabbit.listener.RabbitListenerContainerFactory;
+   import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+   import org.springframework.context.annotation.Bean;
+   import org.springframework.context.annotation.Configuration;
+   
+   import java.util.HashMap;
+   import java.util.Map;
+   
+   import static cn.itsource.hrm.constants.MQConstants.*;
+   
+   @Configuration
+   public class MQConfig {
+       //定义RabbitTemplate 指定 JSON转换器
+       @Bean
+       public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+           RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+           rabbitTemplate.setMessageConverter(new Jackson2JsonMessageConverter());
+           //1.把要发送的消息内容 ，交换机，rontkey等都保存下来到Mysql
+           //2.后续可以用来重写发送消息，甚至可以使用一个定时任务不停的重试，可以甚至一个最大重试次数
+           //设置消息回调
+           rabbitTemplate.setMandatory(true);
+   
+           return rabbitTemplate;
+       }
+   
+       //定义 监听器的工厂 ，定义JSON的转换器
+       @Bean("rabbitListenerContainerFactory")
+       public RabbitListenerContainerFactory<?> rabbitListenerContainerFactory(ConnectionFactory connectionFactory){
+           SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+           factory.setConnectionFactory(connectionFactory);
+           factory.setMessageConverter(new Jackson2JsonMessageConverter());
+           factory.setConcurrentConsumers(3);
+           factory.setMaxConcurrentConsumers(10);
+           factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
+           factory.setPrefetchCount(1);
+           return factory;
+       }
+   }
+   ```
+
+4. 具体的消费者接收
+
+   ```java
+   //..
+   	/**
+   		* 邮件处理程序
+       */
+       @RabbitListener(queues = QUEUE_NAME_EMAIL, containerFactory = "rabbitListenerContainerFactory")
+       public void emailHandler(@Payload EmailTo emailTo, Channel channel, Message message) throws IOException {
+           for (String email : emailTo.getEmails()) {
+               //1.准备要发送的消息
+               String format = CharSequenceUtil.format(emailTemplate, email, emailTo.getId(), emailTo.getCourseName(), DateUtil.formatDate(emailTo.getOnlineTime()));
+               //2.发送短信
+               log.info(format);
+               //消息确认
+               channel.basicAck(message.getMessageProperties().getDeliveryTag(), false);
+           }
+       }
+   //...
+   ```
+
+   注:
+
+   1. `@RabbitListener`:监听某个队列
+   2. `containerFactory`: 获取队列中的消息按照我们定义配置参数进行序列化
+
+   3. 注意: 打了RabbitListener的方法上的参数是由这个注解来决定的! 
+   4. `@Payload`: 返回的消息自动封装转为Class 类
+

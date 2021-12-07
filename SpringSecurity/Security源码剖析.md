@@ -198,7 +198,7 @@ SpringSecurity是基于Filter实现认证和授权，底层通过`FilterChainPro
 
 ## 3. 认证原理
 
-![image-20211204143529271](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211204143529271.png)
+![image-20211206210815409](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211206210815409.png)
 
 接下来就会围绕这个认证的流程进行不断的找源码一步一步走:
 
@@ -468,3 +468,10 @@ public String add(){
 指明了方法必须要有 employee:add 或者 employee:update的权限才能访问 ， 该注解不需要有固定的前缀。
 
 注意格式“@PreAuthorize("hasAuthority('employee:add')")” ，hasAuthority不能省略，括号中是单引号。
+
+
+
+总结:
+
+![image-20211207161059378](https://gitee.com/miawei/pic-go-img/raw/master/imgs/image-20211207161059378.png)
+
